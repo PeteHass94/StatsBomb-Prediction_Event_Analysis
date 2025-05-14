@@ -58,7 +58,7 @@ def main():
     # st.dataframe(lineups, column_config={"cards": st.column_config.JsonColumn(width="large")})
     
     competitions = dataFetcher.get_competition_teams_matches()
-    st.dataframe(competitions[["competition_name", "season_name","competition_id", "season_id", "matches", "teams count", "teams"]])
-
+    st.dataframe(competitions[["competition_name", "season_name","competition_id", "season_id", "matches", "teams count", "teams_str"]])
+    st.text(f"Total Competitions: {len(competitions)}, Total Teams: {competitions['teams count'].sum()}, Total Matches: {competitions['matches'].sum()}")
 if __name__ == "__main__":
     main()
