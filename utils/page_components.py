@@ -54,14 +54,16 @@ def set_page_config():
     Sets the page configuration for the app.
     """
     st.set_page_config(
-        layout="centered",
+        layout="wide",
         page_title="Game State Analsis",
         page_icon="theme/Logo/PH logo.png",
         initial_sidebar_state="expanded",
         menu_items={
             "Report a bug": "mailto:test@email.com?subject=Bug report"
         }
+        
     )
+    
 
 
 def add_page_selector():

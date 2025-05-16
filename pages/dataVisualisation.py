@@ -6,7 +6,7 @@ import streamlit as st
 import pandas as pd
 
 import utils.data_fetcher as dataFetcher
-
+import modules.visuals as visuals
 
 from utils.page_components import (
     add_common_page_elements,
@@ -58,7 +58,43 @@ def main():
     # st.dataframe(lineups, column_config={"cards": st.column_config.JsonColumn(width="large")})
     
     competitions = dataFetcher.get_competition_teams_matches()
-    st.dataframe(competitions[["competition_name", "season_name","competition_id", "season_id", "matches", "teams count", "teams_str"]])
+    st.dataframe(competitions[["competition_name", "season_name","competition_id", "season_id", "matches", "teams count", "teams"]])
     st.text(f"Total Competitions: {len(competitions)}, Total Teams: {competitions['teams count'].sum()}, Total Matches: {competitions['matches'].sum()}")
+
+    # Step 1: User selects competition
+    selected_competition_name = st.sidebar.selectbox("Competition", competitions["competition_name"].unique())
+    comp = competitions.query('competition_name == @selected_competition_name')
+
+    # Step 2: Combine team lists and remove duplicates
+    # Flatten the list of lists
+    
+    
+    all_teams = [team for sublist in comp["teams"] for team in sublist]
+    # unique_teams = list(all_teams)
+    
+
+    # Step 3: Team selectbox
+    selected_team_name = st.sidebar.selectbox("Team", sorted(all_teams))  # sort for easier UX
+    team_comp_rows = comp[comp["teams"].apply(lambda team_list: selected_team_name in team_list)]
+    team_comp_rows_str = ", ".join(
+                            [f"{comp_row['competition_name']} {comp_row['season_name']}" for _, comp_row in team_comp_rows.iterrows()]
+                            ) if not team_comp_rows.empty else ""
+    st.subheader(f"Selected Team: {selected_team_name}")
+    st.text(f"In competitions: {team_comp_rows_str}")
+
+    matches = dataFetcher.get_teams_matches(comp.competition_id.iloc[0], selected_team_name)
+    st.dataframe(matches[["match_id", "season", "opponent", "match_date", "team_score", "opponent_score", "venue",
+                          "match_time", "goals_scored", "goals_conceded", "shots_attempted", "shots_conceded"]]
+                    , column_config={"goals_scored": st.column_config.JsonColumn(width="large"),
+                                     "goals_conceded": st.column_config.JsonColumn(width="large"),
+                                    "shots_attempted": st.column_config.JsonColumn(width="large"),
+                                    "shots_conceded": st.column_config.JsonColumn(width="large")}
+                    , hide_index=True)
+    st.text(f"Total Matches: {len(matches)}, Total goals scored: {matches['team_score'].sum()}, Total Goals Conceded: {matches['opponent_score'].sum()}, Minutes Played: {matches['match_time'].sum()}")
+
+    st.subheader("Goals Scored Histogram")
+    visuals.plot_goals_histogram(matches["goals_scored"])
+    visuals.plot_goals_histogram(matches["goals_conceded"])
+    
 if __name__ == "__main__":
     main()

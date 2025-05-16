@@ -15,7 +15,7 @@ from requests_cache import install_cache
 install_cache("statsbomb_cache", backend="sqlite", expire_after=3600)  # Cache expires after 1 hour
 
 # Streamlit page configuration
-st.set_page_config(page_title="Statsbomb Chart App", page_icon=":soccer:")
+st.set_page_config(layout="wide", page_title="Statsbomb Chart App", page_icon=":soccer:")
 st.title('Data Basics Masterclass test')
 st.caption('Made by Ana Beatriz Macedo')
 
@@ -80,7 +80,11 @@ def main():
 
     # Step 3: Get and process match events
     match_events = function.process_match_events(get_match_events(match_id))
-
+    st.subheader("Match Events")
+    st.dataframe(match_events)
+    st.text(match_events.columns)
+    st.text(match_events['type'].unique())
+        
     # Step 4: Display charts
     st.subheader('Charts Area')
     st.write('With the "Plot Function" on the left, please select the chart of your choice to appear on the screen.')
