@@ -30,6 +30,7 @@ def fetch_with_retries(fetch_function, retries=5, lineup=False, team="", **kwarg
 def process_match_events(match_events):
     if not match_events.empty:
         match_events[['location_x', 'location_y']] = match_events['location'].apply(pd.Series)
+        match_events[['carry_end_location_x', 'carry_end_location_y']] = match_events['carry_end_location'].apply(pd.Series)
         match_events[['pass_end_location_x', 'pass_end_location_y']] = match_events['pass_end_location'].apply(pd.Series)
         match_events['shot_end_location_x'], match_events['shot_end_location_y'], match_events['shot_end_location_z'] = np.nan, np.nan, np.nan
         end_locations = np.vstack(match_events.loc[match_events.type == 'Shot'].shot_end_location.apply(
@@ -141,7 +142,7 @@ def get_competition_teams_matches():
 
     return competitions
 
-# @st.cache_data
+@st.cache_data
 def get_teams_matches(competition_id, team):
     competitions = get_competitions()
     seasons = competitions[competitions['competition_id'] == competition_id]
@@ -171,7 +172,9 @@ def get_teams_matches(competition_id, team):
             if events is None:
                 st.warning(f"No events found for match ID {match_row['match_id']}.")
                 continue
-
+            
+            binned_rolling_df = events['binned_data']
+            
             # Build row dict
             match_dict = {
                 "match_id": match_row["match_id"],
@@ -190,10 +193,34 @@ def get_teams_matches(competition_id, team):
                 "opponent_score": opponent_score,
                 "venue": venue,
                 "match_time": events["match_time"],
-                "goals_scored": events["goals_scored"],
-                "goals_conceded": events["goals_conceded"],
-                "shots_attempted": events["shots_attempted"],
-                "shots_conceded": events["shots_conceded"]                
+                "goals_scored": events["goals_scored"].to_dict(orient='records'),
+                "goals_conceded": events["goals_conceded"].to_dict(orient='records'),
+                "shots_attempted": events["shots_attempted"].to_dict(orient='records'),
+                "shots_conceded": events["shots_conceded"].to_dict(orient='records'),
+                
+                "binned_xg_for": binned_rolling_df['binned_xg_for'].tolist(),
+                "binned_xg_against": binned_rolling_df['binned_xg_against'].tolist(),
+                "binned_final_third_passes_for": binned_rolling_df['binned_final_third_passes_for'].tolist(),
+                "binned_final_third_passes_against": binned_rolling_df['binned_final_third_passes_against'].tolist(),
+                "binned_box_passes_for": binned_rolling_df['binned_box_passes_for'].tolist(),
+                "binned_box_passes_against": binned_rolling_df['binned_box_passes_against'].tolist(),
+                "binned_final_third_carries_for": binned_rolling_df['binned_final_third_carries_for'].tolist(),
+                "binned_final_third_carries_against": binned_rolling_df['binned_final_third_carries_against'].tolist(),
+                "binned_box_carries_for": binned_rolling_df['binned_box_carries_for'].tolist(),
+                "binned_box_carries_against": binned_rolling_df['binned_box_carries_against'].tolist(),
+                
+                "rolling_xg_for": binned_rolling_df['rolling_xg_for'].tolist(),
+                "rolling_xg_against": binned_rolling_df['rolling_xg_against'].tolist(),
+                "rolling_final_third_passes_for": binned_rolling_df['rolling_final_third_passes_for'].tolist(),
+                "rolling_final_third_passes_against": binned_rolling_df['rolling_final_third_passes_against'].tolist(),
+                "rolling_box_passes_for": binned_rolling_df['rolling_box_passes_for'].tolist(),
+                "rolling_box_passes_against": binned_rolling_df['rolling_box_passes_against'].tolist(),
+                "rolling_final_third_carries_for": binned_rolling_df['rolling_final_third_carries_for'].tolist(),
+                "rolling_final_third_carries_against": binned_rolling_df['rolling_final_third_carries_against'].tolist(),
+                "rolling_box_carries_for": binned_rolling_df['rolling_box_carries_for'].tolist(),
+                "rolling_box_carries_against": binned_rolling_df['rolling_box_carries_against'].tolist(),
+                
+                "goal_next_10": binned_rolling_df['goal_next_10'].tolist(),
             }
 
             # Add to list
@@ -202,13 +229,40 @@ def get_teams_matches(competition_id, team):
     # Create DataFrame from list of dictionaries
     return pd.DataFrame(match_data_list)
 
-def get_match_events_timeline(match, team_name):
+def bin_events(event_list, value_col=None, bin_width=10, max_time=100):
+    """
+    Converts list of events into a binned time series.
+    If value_col is provided, sums values in that column per bin.
+    """
+    df = pd.DataFrame(event_list)
+    if df.empty:
+        return pd.Series([0] * (max_time // bin_width), name=value_col or 'count')
+
+    df['bin'] = (df['timeValue'] // bin_width).astype(int)
+    if value_col:
+        binned = df.groupby('bin')[value_col].sum()
+    else:
+        binned = df.groupby('bin').size()
+        
+    return binned.reindex(range(max_time // bin_width), fill_value=0)
+
+def rolling_series(series, window=3):
+    
+    return series.rolling(window=window, min_periods=1).mean()
+
+def add_future_goal_label(df, horizon_bins=1):  # horizon_bins are the number of bins to look ahead
+    df['goal_next_10'] = df['goals_scored'].shift(-1).fillna(0)
+    for i in range(2, horizon_bins + 1):
+        df['goal_next_10'] += df['goals_scored'].shift(-i).fillna(0)
+    df['goal_next_10'] = (df['goal_next_10'] > 0).astype(int)
+    return df
+
+def get_match_events_timeline(match, team_name, bin_width=10, rolling_window=10, horizon_bins=1):
     # Load and process events
     events = process_match_events(get_match_events(match['match_id']))
     
     max_time_p1 = parse_timestamp(events[events['period'] == 1]['timestamp'].max())
     
-    # Add timeValue column (float minutes since KO)
     def compute_time_value(row, max_time_period1=max_time_p1):
         if pd.isna(row['timestamp']):
             return np.nan
@@ -217,64 +271,121 @@ def get_match_events_timeline(match, team_name):
         elif row['period'] == 2:
             base_time = parse_timestamp(row['timestamp']) + max_time_period1
         total_minutes = base_time.total_seconds() / 60
-        
         return round(total_minutes, 2)
-    
+
     events['timeValue'] = events.apply(compute_time_value, axis=1)
-    # events['timeValue'] = events['timeValue'].round(2)
+    max_time = events['timeValue'].max()
     
-    # Filter by team
+    # Filter events
     team_events = events[events['team'] == team_name]
     opp_events = events[events['team'] != team_name]
+
+    # Collect relevant data
+    goals_scored = team_events[(team_events['type'] == "Shot") & (team_events['shot_outcome'] == "Goal")][['timeValue', 'period']]
+    goals_conceded = opp_events[(opp_events['type'] == "Shot") & (opp_events['shot_outcome'] == "Goal")][['timeValue', 'period']]
+    shots_attempted = team_events[team_events['type'] == "Shot"][['timeValue', 'shot_statsbomb_xg']]
+    shots_conceded = opp_events[opp_events['type'] == "Shot"][['timeValue', 'shot_statsbomb_xg']]
+
+    team_passes = team_events[team_events['type'] == "Pass"]
+    team_passes['pass_outcome'] = team_passes['pass_outcome'].fillna('Complete')
+    team_passes = team_passes[team_passes['pass_outcome'] == 'Complete']
+    opp_passes = opp_events[opp_events['type'] == "Pass"]
+    opp_passes['pass_outcome'] = opp_passes['pass_outcome'].fillna('Complete')
+    opp_passes = opp_passes[opp_passes['pass_outcome'] == 'Complete']
     
-    # ---------- GOALS ----------
-    # Goals scored by team
-    goals_scored = team_events[
-        (team_events['type'] == "Shot") & (team_events['shot_outcome'] == "Goal")
-    ][['timeValue', 'period']].to_dict("records")
-
-    # Own goals scored for the team
-    own_goals_for = team_events[
-        team_events['type'] == "Own Goal For"
-    ][['timeValue', 'period']].to_dict("records")
-
-    # Goals conceded by team (opponent scored)
-    goals_conceded = opp_events[
-        (opp_events['type'] == "Shot") & (opp_events['shot_outcome'] == "Goal")
-    ][['timeValue', 'period']].to_dict("records")
-
-    # Own goals against the team
-    own_goals_against = opp_events[
-        opp_events['type'] == "Own Goal For"
-    ][['timeValue', 'period']].to_dict("records")
-
-    # Combine goal timelines
-    team_goal_timeline = goals_scored + own_goals_for
-    team_conceded_timeline = goals_conceded + own_goals_against
-
-    # ---------- SHOTS ----------
-    # Shots attempted with xG
-    team_shots = team_events[
-        team_events['type'] == "Shot"
-    ][['timeValue', 'period', 'shot_statsbomb_xg', 'shot_outcome']].to_dict("records")
-
-    # Shots conceded with xG
-    shots_conceded = opp_events[
-        opp_events['type'] == "Shot"
-    ][['timeValue', 'period', 'shot_statsbomb_xg', 'shot_outcome']].to_dict("records")
+    team_final_third_passes = team_passes[team_passes['pass_end_location_x'] > 80]
+    opp_final_third_passes = opp_passes[opp_passes['pass_end_location_x'] > 80]
     
-    # ---------- MATCH TIME ----------
-    # max_p1 = events[events['period'] == 1]['timeValue'].max()
-    # max_p2 = events[events['period'] == 2]['timeValue'].max()
-    # # max_p2 -= 45  # remove added 45
-    # total_time = max_p1 + max_p2 - 45.0
+    team_box_passes = team_passes[(team_passes['pass_end_location_x'] > 102) & (team_passes['pass_end_location_y'] > 18) & (team_passes['pass_end_location_y'] < 62)]
+    opp_box_passes = opp_passes[(opp_passes['pass_end_location_x'] > 102) & (opp_passes['pass_end_location_y'] > 18) & (opp_passes['pass_end_location_y'] < 62)]
+    
+    team_carries = team_events[team_events['type'] == "Carry"]
+    opp_carries = opp_events[opp_events['type'] == "Carry"]
+    
+    team_final_third_carries = team_carries[team_carries['carry_end_location_x'] > 80]
+    opp_final_third_carries = opp_carries[opp_carries['carry_end_location_x'] > 80]
+    
+    team_box_carries = team_carries[(team_carries['carry_end_location_x'] > 102) & (team_carries['carry_end_location_y'] > 18) & (team_carries['carry_end_location_y'] < 62)]
+    opp_box_carries = opp_carries[(opp_carries['carry_end_location_x'] > 102) & (opp_carries['carry_end_location_y'] > 18) & (opp_carries['carry_end_location_y'] < 62)]
+    
+    
+    # Bin all relevant metrics
+    binned_goals = bin_events(goals_scored.to_dict(orient='records'), bin_width=bin_width)
+    binned_conceded = bin_events(goals_conceded.to_dict(orient='records'), bin_width=bin_width)
+    binned_xg_for = bin_events(shots_attempted.to_dict(orient='records'), value_col='shot_statsbomb_xg', bin_width=bin_width)
+    binned_xg_against = bin_events(shots_conceded.to_dict(orient='records'), value_col='shot_statsbomb_xg', bin_width=bin_width)
 
-    match_time = events['timeValue'].max()
+    binned_final_third_passes_for = bin_events(team_final_third_passes.to_dict(orient='records'), bin_width=bin_width)
+    binned_final_third_passes_against = bin_events(opp_final_third_passes.to_dict(orient='records'), bin_width=bin_width)
+    binned_box_passes_for = bin_events(team_box_passes.to_dict(orient='records'), bin_width=bin_width)
+    binned_box_passes_against = bin_events(opp_box_passes.to_dict(orient='records'), bin_width=bin_width)
+    binned_final_third_carries_for = bin_events(team_final_third_carries.to_dict(orient='records'), bin_width=bin_width)
+    binned_final_third_carries_against = bin_events(opp_final_third_carries.to_dict(orient='records'), bin_width=bin_width)
+    binned_box_carries_for = bin_events(team_box_carries.to_dict(orient='records'), bin_width=bin_width)
+    binned_box_carries_against = bin_events(opp_box_carries.to_dict(orient='records'), bin_width=bin_width)
+    
+    # Combine into single DataFrame
+    # df = pd.DataFrame({
+    #     'goals_scored': binned_goals,
+    #     'goals_conceded': binned_conceded,
+    #     'xg_for': binned_xg_for,
+    #     'xg_against': binned_xg_against
+        
+    # })
+
+    # Rolling averages
+    # df['rolling_xg_for'] = rolling_series(df['xg_for'], window=rolling_window)
+    # df['rolling_xg_against'] = rolling_series(df['xg_against'], window=rolling_window)
+    rolling_xg_for = rolling_series(binned_xg_for, window=rolling_window)
+    rolling_xg_against = rolling_series(binned_xg_against, window=rolling_window)
+    
+    rolling_final_third_passes_for = rolling_series(binned_final_third_passes_for, window=rolling_window)
+    rolling_final_third_passes_against = rolling_series(binned_final_third_passes_against, window=rolling_window)
+    rolling_box_passes_for = rolling_series(binned_box_passes_for, window=rolling_window)
+    rolling_box_passes_against = rolling_series(binned_box_passes_against, window=rolling_window)
+    rolling_final_third_carries_for = rolling_series(binned_final_third_carries_for, window=rolling_window)
+    rolling_final_third_carries_against = rolling_series(binned_final_third_carries_against, window=rolling_window)
+    rolling_box_carries_for = rolling_series(binned_box_carries_for, window=rolling_window)
+    rolling_box_carries_against = rolling_series(binned_box_carries_against, window=rolling_window)
+    
+    
+    # Combine into single DataFrame
+    df = pd.DataFrame({
+        'goals_scored': binned_goals,
+        'goals_conceded': binned_conceded,
+        
+        'binned_xg_for': binned_xg_for,
+        'binned_xg_against': binned_xg_against,
+        'binned_final_third_passes_for': binned_final_third_passes_for,
+        'binned_final_third_passes_against': binned_final_third_passes_against,
+        'binned_box_passes_for': binned_box_passes_for,
+        'binned_box_passes_against': binned_box_passes_against,
+        'binned_final_third_carries_for': binned_final_third_carries_for,
+        'binned_final_third_carries_against': binned_final_third_carries_against,
+        'binned_box_carries_for': binned_box_carries_for,
+        'binned_box_carries_against': binned_box_carries_against,
+        
+        'rolling_xg_for': rolling_xg_for,
+        'rolling_xg_against': rolling_xg_against,
+        'rolling_final_third_passes_for': rolling_final_third_passes_for,
+        'rolling_final_third_passes_against': rolling_final_third_passes_against,
+        'rolling_box_passes_for': rolling_box_passes_for,
+        'rolling_box_passes_against': rolling_box_passes_against,
+        'rolling_final_third_carries_for': rolling_final_third_carries_for,
+        'rolling_final_third_carries_against': rolling_final_third_carries_against,
+        'rolling_box_carries_for': rolling_box_carries_for,
+        'rolling_box_carries_against': rolling_box_carries_against        
+    })
+    
+    
+    # Future goal label
+    df = add_future_goal_label(df, horizon_bins=horizon_bins)
 
     return {
-        "goals_scored": team_goal_timeline,
-        "goals_conceded": team_conceded_timeline,
-        "shots_attempted": team_shots,
+        "match_time": max_time,
+        "goals_scored": goals_scored,
+        "goals_conceded": goals_conceded,
+        "shots_attempted": shots_attempted,
         "shots_conceded": shots_conceded,
-        "match_time": match_time
+        "binned_data": df  # Contains binned + rolling + label
     }

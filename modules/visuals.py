@@ -2,59 +2,82 @@ import plotly.graph_objects as go
 import streamlit as st
 import numpy as np
 
-def plot_goals_histogram(goals_column):
-    goals_data = [goal for sublist in goals_column for goal in sublist]
 
-    if not isinstance(goals_data, list) or not all(isinstance(goal, dict) and 'period' in goal and 'timeValue' in goal for goal in goals_data):
-        raise TypeError("goals_data must be a list of dictionaries with 'period' and 'timeValue' keys.")
-
-    # Split goals
-    period_1_goals = [goal['timeValue'] for goal in goals_data if goal['period'] == 1]
-    period_2_goals = [goal['timeValue'] for goal in goals_data if goal['period'] == 2]
-
+def goal_lines(goals_df, bin_width=10, color='blue', name='Goal'):
+    return [
+        {
+            "type": "line",
+            "x0": time,
+            "x1": time,
+            "y0": 0,
+            "y1": 1,
+            "xref": "x",
+            "yref": "paper",
+            "line": {
+                "color": color,
+                "width": 1.5,
+                "dash": "dash"
+            },
+            "name": name
+        }
+        for time in goals_df['timeValue']
+    ]
+    
+def plot_xg_histograms(binned_for, binned_against, goals_scored, goals_conceded, bin_width=10):
+    x = range(len(binned_for)) * bin_width
     fig = go.Figure()
 
-    # Period 1
-    fig.add_trace(go.Histogram(
-        x=period_1_goals,
-        xbins=dict(start=0, end=45, size=10),
-        name='Period 1',
-        marker_color='blue',
-        opacity=0.75
-    ))
+    fig.add_trace(go.Bar(x=x, y=binned_for, name=binned_for.name, marker_color='green'))
+    fig.add_trace(go.Bar(x=x, y=binned_against, name=binned_against.name, marker_color='red'))
 
-    # Period 2
-    fig.add_trace(go.Histogram(
-        x=period_2_goals,
-        xbins=dict(start=45, end=105, size=10),
-        name='Period 2',
-        marker_color='green',
-        opacity=0.75
-    ))
+    # Add dashed lines for goals
+    for line in goal_lines(goals_scored, bin_width=bin_width, color='goldenrod', name='Goal Scored'):
+        fig.add_shape(line)
+    for line in goal_lines(goals_conceded, bin_width=bin_width, color='white', name='Goal Conceded'):
+        fig.add_shape(line)
 
-    # Add labels above each bin
-    for trace in fig.data:
-        counts, edges = np.histogram(trace.x, bins=np.arange(trace.xbins.start, trace.xbins.end + trace.xbins.size, trace.xbins.size))
-        for i, count in enumerate(counts):
-            if count > 0:
-                x_pos = edges[i] + trace.xbins.size / 2
-                fig.add_annotation(
-                    x=x_pos,
-                    y=count,
-                    text=str(count),
-                    showarrow=False,
-                    font=dict(color='white'),
-                    yanchor='bottom'
-                )
-
-    # Layout: shared single x-axis and y-axis only
+    # Add dummy traces for legend
+    fig.add_trace(go.Scatter(x=[None], y=[None], mode='lines',
+                             line=dict(color='goldenrod', width=1.5, dash='dash'),
+                             name='Goal Scored'))
+    fig.add_trace(go.Scatter(x=[None], y=[None], mode='lines',
+                             line=dict(color='white', width=1.5, dash='dash'),
+                             name='Goal Conceded'))
+    
     fig.update_layout(
-        barmode='overlay',
-        # bargap=0.2,
-        # bargroupgap=0.1,
-        xaxis=dict(title='Time (minutes)'),
-        yaxis=dict(title=''),
-        legend=dict(x=0.8, y=1.2),
+        title=f"{binned_for.name} and {binned_against.name} Histogram",
+        xaxis_title="Match Time (mins)",
+        yaxis_title="value",
+        barmode='group',
+        showlegend=True
     )
+    st.plotly_chart(fig, use_container_width=True)
+    
+def plot_rolling_xg(rolling_for, rolling_against, goals_scored, goals_conceded, bin_width=10):
+    x = range(len(rolling_for))  * bin_width
+    fig = go.Figure()
 
+    fig.add_trace(go.Scatter(x=x, y=rolling_for, name=rolling_for.name, line=dict(color='green')))
+    fig.add_trace(go.Scatter(x=x, y=rolling_against, name=rolling_against.name, line=dict(color='red')))
+
+    # Add vertical lines for goals
+    for line in goal_lines(goals_scored, bin_width=bin_width, color='goldenrod', name='Goal Scored'):
+        fig.add_shape(line)
+    for line in goal_lines(goals_conceded, bin_width=bin_width, color='white', name='Goal Conceded'):
+        fig.add_shape(line)
+
+    # Add dummy traces for legend
+    fig.add_trace(go.Scatter(x=[None], y=[None], mode='lines',
+                             line=dict(color='goldenrod', width=1.5, dash='dash'),
+                             name='Goal Scored'))
+    fig.add_trace(go.Scatter(x=[None], y=[None], mode='lines',
+                             line=dict(color='white', width=1.5, dash='dash'),
+                             name='Goal Conceded'))
+    
+    fig.update_layout(
+        title=f"{rolling_for.name} and {rolling_against.name}",
+        xaxis_title="Match Time (mins)",
+        yaxis_title="Rolling value",
+        showlegend=True
+    )
     st.plotly_chart(fig, use_container_width=True)

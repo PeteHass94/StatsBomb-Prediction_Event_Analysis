@@ -84,17 +84,33 @@ def main():
 
     matches = dataFetcher.get_teams_matches(comp.competition_id.iloc[0], selected_team_name)
     st.dataframe(matches[["match_id", "season", "opponent", "match_date", "team_score", "opponent_score", "venue",
-                          "match_time", "goals_scored", "goals_conceded", "shots_attempted", "shots_conceded"]]
+                          "match_time", "goals_scored", "goals_conceded", "shots_attempted", "shots_conceded",
+                          "binned_xg_for", "binned_xg_against", 
+                          "binned_final_third_passes_for", "binned_final_third_passes_against", "binned_box_passes_for", "binned_box_passes_against",
+                          "binned_final_third_carries_for", "binned_final_third_carries_against", "binned_box_carries_for", "binned_box_carries_against",
+                          "rolling_xg_for", "rolling_xg_against", 
+                          "rolling_final_third_passes_for", "rolling_final_third_passes_against", "rolling_box_passes_for", "rolling_box_passes_against",
+                          "rolling_final_third_carries_for", "rolling_final_third_carries_against", "rolling_box_carries_for", "rolling_box_carries_against",
+                          "goal_next_10"]]
                     , column_config={"goals_scored": st.column_config.JsonColumn(width="large"),
                                      "goals_conceded": st.column_config.JsonColumn(width="large"),
                                     "shots_attempted": st.column_config.JsonColumn(width="large"),
-                                    "shots_conceded": st.column_config.JsonColumn(width="large")}
+                                    "shots_conceded": st.column_config.JsonColumn(width="large")
+                                    }
                     , hide_index=True)
     st.text(f"Total Matches: {len(matches)}, Total goals scored: {matches['team_score'].sum()}, Total Goals Conceded: {matches['opponent_score'].sum()}, Minutes Played: {matches['match_time'].sum()}")
 
     st.subheader("Goals Scored Histogram")
-    visuals.plot_goals_histogram(matches["goals_scored"])
-    visuals.plot_goals_histogram(matches["goals_conceded"])
+    selected_match = matches.iloc[0]  # or user-selected
+
+    selected_match.index.name = 'bin'
+
+    goals_scored_df = pd.DataFrame(selected_match['goals_scored'])
+    goals_conceded_df = pd.DataFrame(selected_match['goals_conceded'])
+
+    visuals.plot_xg_histograms(selected_match['binned_xg_for'], selected_match['binned_xg_against'], goals_scored_df, goals_conceded_df)
+    visuals.plot_rolling_xg(selected_match['rolling_xg_for'], selected_match['rolling_xg_against'], goals_scored_df, goals_conceded_df)
+    
     
 if __name__ == "__main__":
     main()
