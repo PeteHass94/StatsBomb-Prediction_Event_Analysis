@@ -192,6 +192,8 @@ def get_teams_matches(competition_id, team):
                 "team_score": team_score,
                 "opponent_score": opponent_score,
                 "venue": venue,
+                "match_summary": f"Vs {opponent} ({venue[0]}, {pd.to_datetime(match_row['match_date']).strftime('%d/%m/%Y')} - {match_row['season']})",
+
                 "match_time": events["match_time"],
                 "goals_scored": events["goals_scored"].to_dict(orient='records'),
                 "goals_conceded": events["goals_conceded"].to_dict(orient='records'),

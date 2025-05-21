@@ -14,8 +14,21 @@ from requests_cache import install_cache
 
 install_cache("statsbomb_cache", backend="sqlite", expire_after=3600)  # Cache expires after 1 hour
 
+
+from utils.page_components import (
+    add_common_page_elements,
+)
+
+# def show():
+sidebar_container = add_common_page_elements()
+page_container = st.sidebar.container()
+sidebar_container = st.sidebar.container()
+
+st.header("StatsBomb py", divider=True)
+st.text("Exploring the data")
+
 # Streamlit page configuration
-st.set_page_config(layout="wide", page_title="Statsbomb Chart App", page_icon=":soccer:")
+# st.set_page_config(layout="wide", page_title="Statsbomb Chart App", page_icon=":soccer:")
 st.title('Data Basics Masterclass test')
 st.caption('Made by Ana Beatriz Macedo')
 

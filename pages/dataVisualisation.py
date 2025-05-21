@@ -101,8 +101,10 @@ def main():
     st.text(f"Total Matches: {len(matches)}, Total goals scored: {matches['team_score'].sum()}, Total Goals Conceded: {matches['opponent_score'].sum()}, Minutes Played: {matches['match_time'].sum()}")
 
     st.subheader("Goals Scored Histogram")
-    selected_match = matches.iloc[0]  # or user-selected
+    selected_label = st.selectbox("Select a match", matches['match_summary'])
 
+    # Get the corresponding row from matches
+    selected_match = matches[matches['match_summary'] == selected_label].iloc[0]
     selected_match.index.name = 'bin'
 
     goals_scored_df = pd.DataFrame(selected_match['goals_scored'])
