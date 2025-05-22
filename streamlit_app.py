@@ -29,17 +29,51 @@ from utils.page_components import (
     
 sidebar_container = add_common_page_elements()
 
-displaytext = """## Welcome to Football Analysis on Game State """
+# displaytext = """## Welcome to Football Analysis on Big Chance Prediction! \n\n"""
 
-st.markdown(displaytext)
+# st.markdown(displaytext)
 
-displaytext = (
-    """Game state is described as a teams state in a game, whether they are winning, drawing or losing. \n\n"""
-    """I will be showing how I scrape data from the internet then display in this website. """
-    """I will look into a number of factors to help show important information on each team. \n\n"""
-)
+# displaytext = """Big Chances are described as xG Values over 0.38 in a game. See here for more information: [What Are Expected Goals (xG)?](https://statsbomb.com/soccer-metrics/expected-goals-xg-explained/). 
 
-st.markdown(displaytext)
+# On here you can see what free data StatsBomb have to offer. 
+# And you can use that data to see if big chances in a football match can be predicted using xgboost. 
 
+# """
+
+# st.markdown(displaytext)
+
+
+# Add a title and introductory text
+st.title("⚽ Football Analysis: Predicting Big Chances with Machine Learning")
+st.divider()
+# Add a brief description
+st.markdown("""
+Welcome to the **Football Analysis App**! This platform leverages **StatsBomb's free football data** to explore and predict **Big Chances** in football matches using advanced machine learning techniques like **XGBoost**.
+
+---
+
+### What Are Big Chances?
+Big Chances are defined as moments in a match with an **Expected Goals (xG) value greater than 0.38**. These are high-probability scoring opportunities that can often determine the outcome of a game.
+
+For more details, check out this resource: [What Are Expected Goals (xG)?](https://statsbomb.com/soccer-metrics/expected-goals-xg-explained/).
+
+---
+
+### What Can You Do Here?
+- Explore **StatsBomb's free football data**.
+- Analyze match events and visualize key metrics.
+- Use machine learning to predict **Big Chances** in football matches.
+
+---
+
+### How to Get Started
+1. Use the sidebar to navigate through the app.
+2. Explore the data and visualizations.
+3. Dive into the machine learning predictions to see how Big Chances are modeled.
+
+---
+
+Enjoy exploring football data and uncovering insights into the game!
+""")
 
 

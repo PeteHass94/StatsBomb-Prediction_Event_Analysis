@@ -55,7 +55,7 @@ def set_page_config():
     """
     st.set_page_config(
         layout="wide",
-        page_title="Game State Analsis",
+        page_title="Big Chance Prediction",
         page_icon="theme/Logo/PH logo.png",
         initial_sidebar_state="expanded",
         menu_items={
@@ -68,8 +68,8 @@ def set_page_config():
 
 def add_page_selector():
     #st.image("data/ressources/img/TwelveEdu.png")
-    st.page_link("pages/exploringData.py", label="StatsBomb Explore")
-    st.page_link("pages/dataVisualisation.py", label="StatsBomb Data")
+    st.page_link("pages/StatsBombExploringData.py", label="StatsBomb Data Explorer")
+    st.page_link("pages/PredictingBigChances.py", label="Predicting Big Chances")
     # st.page_link("pages/euro_pass_analysis.py", label="Euro 24 pass analysis")
     # st.page_link("pages/attacker_analysis.py", label="2018 Season att. analysis")
     # st.page_link("pages/run_analysis.py", label="CL 2023 run analysis")

@@ -193,7 +193,8 @@ def get_teams_matches(competition_id, team):
                 "opponent_score": opponent_score,
                 "venue": venue,
                 "match_summary": f"Vs {opponent} ({venue[0]}, {pd.to_datetime(match_row['match_date']).strftime('%d/%m/%Y')} - {match_row['season']})",
-
+                "team_match_summary": f"{team} Vs {opponent} ({venue[0]}, {pd.to_datetime(match_row['match_date']).strftime('%d/%m/%Y')} - {match_row['season']})",
+                
                 "match_time": events["match_time"],
                 "goals_scored": events["goals_scored"].to_dict(orient='records'),
                 "goals_conceded": events["goals_conceded"].to_dict(orient='records'),
@@ -222,7 +223,10 @@ def get_teams_matches(competition_id, team):
                 "rolling_box_carries_for": binned_rolling_df['rolling_box_carries_for'].tolist(),
                 "rolling_box_carries_against": binned_rolling_df['rolling_box_carries_against'].tolist(),
                 
-                "goal_next_10": binned_rolling_df['goal_next_10'].tolist(),
+                "goal_scored_next_10": binned_rolling_df['goal_scored_next_10'].tolist(),
+                "goal_conceded_next_10": binned_rolling_df['goal_conceded_next_10'].tolist(),
+                "big_chance_for_next_10": binned_rolling_df['big_chance_for_next_10'].tolist(),
+                "big_chance_against_next_10": binned_rolling_df['big_chance_against_next_10'].tolist()
             }
 
             # Add to list
@@ -252,12 +256,70 @@ def rolling_series(series, window=3):
     
     return series.rolling(window=window, min_periods=1).mean()
 
-def add_future_goal_label(df, horizon_bins=1):  # horizon_bins are the number of bins to look ahead
-    df['goal_next_10'] = df['goals_scored'].shift(-1).fillna(0)
-    for i in range(2, horizon_bins + 1):
-        df['goal_next_10'] += df['goals_scored'].shift(-i).fillna(0)
-    df['goal_next_10'] = (df['goal_next_10'] > 0).astype(int)
-    return df
+def add_future_goal_labels_per_bin(goals_scored, goals_conceded, horizon_bins=1):
+    """
+    Generate per-bin goal labels over the next `horizon_bins`.
+
+    Args:
+        goals_scored (list[int]): 0/1 list per bin.
+        goals_conceded (list[int]): 0/1 list per bin.
+        horizon_bins (int): How far into the future to look.
+
+    Returns:
+        Tuple of (goal_scored_next_10, goal_conceded_next_10) — both lists of len = len(goals) - horizon
+    """
+    num_bins = len(goals_scored) # 10
+    # num_bins1 = len(goals_conceded)
+    scored_labels = []
+    conceded_labels = []
+
+    # st.write(f"Num bins: {num_bins},  Num bins: {num_bins1}, Horizon bins: {horizon_bins}")
+    
+    for i in range(num_bins - horizon_bins):
+        future_scored = sum(goals_scored[i+1:i+1+horizon_bins])
+        future_conceded = sum(goals_conceded[i+1:i+1+horizon_bins])
+
+        scored_labels.append(int(future_scored > 0))
+        conceded_labels.append(int(future_conceded > 0))
+    
+    # Fill the rest with np.nan
+    for _ in range(horizon_bins):
+        scored_labels.append(np.nan)
+        conceded_labels.append(np.nan)
+    
+    return scored_labels, conceded_labels
+
+
+def add_future_big_chance_labels_per_bin(xg_for, xg_against, threshold=0.38, horizon_bins=1):
+    """
+    Generate binary labels per bin for big chances (based on xG threshold) in the next N bins.
+
+    Args:
+        xg_for (list[float]): xG values per bin for the team.
+        xg_against (list[float]): xG values per bin against the team.
+        threshold (float): xG threshold for a big chance.
+        horizon_bins (int): How far into the future to look.
+
+    Returns:
+        Tuple of (big_chance_for_next_10, big_chance_against_next_10) — both lists of len = len(xg) - horizon
+    """
+    num_bins = len(xg_for)
+    big_chance_for = []
+    big_chance_against = []
+
+    for i in range(num_bins - horizon_bins):
+        future_for = xg_for[i+1:i+1+horizon_bins]
+        future_against = xg_against[i+1:i+1+horizon_bins]
+
+        big_chance_for.append(int(any(v > threshold for v in future_for)))
+        big_chance_against.append(int(any(v > threshold for v in future_against)))
+
+    for _ in range(horizon_bins):
+        big_chance_for.append(np.nan)
+        big_chance_against.append(np.nan)
+    
+    return big_chance_for, big_chance_against
+
 
 def get_match_events_timeline(match, team_name, bin_width=10, rolling_window=10, horizon_bins=1):
     # Load and process events
@@ -350,7 +412,7 @@ def get_match_events_timeline(match, team_name, bin_width=10, rolling_window=10,
     rolling_box_carries_for = rolling_series(binned_box_carries_for, window=rolling_window)
     rolling_box_carries_against = rolling_series(binned_box_carries_against, window=rolling_window)
     
-    
+        
     # Combine into single DataFrame
     df = pd.DataFrame({
         'goals_scored': binned_goals,
@@ -379,9 +441,10 @@ def get_match_events_timeline(match, team_name, bin_width=10, rolling_window=10,
         'rolling_box_carries_against': rolling_box_carries_against        
     })
     
+    # Future labels
     
-    # Future goal label
-    df = add_future_goal_label(df, horizon_bins=horizon_bins)
+    df['goal_scored_next_10'], df['goal_conceded_next_10']  = add_future_goal_labels_per_bin(binned_goals, binned_conceded, horizon_bins=horizon_bins)
+    df['big_chance_for_next_10'], df['big_chance_against_next_10'] = add_future_big_chance_labels_per_bin(binned_xg_for, binned_xg_against, horizon_bins=horizon_bins)
 
     return {
         "match_time": max_time,
@@ -391,3 +454,23 @@ def get_match_events_timeline(match, team_name, bin_width=10, rolling_window=10,
         "shots_conceded": shots_conceded,
         "binned_data": df  # Contains binned + rolling + label
     }
+    
+@st.cache_data
+def get_all_teams_matches(competition_id):
+    competitions = get_competition_teams_matches()
+    teams_df = competitions[competitions["competition_id"] == competition_id]
+
+    if teams_df.empty or teams_df.iloc[0]["teams"] is pd.NA:
+        st.warning("No team data available for this competition.")
+        return pd.DataFrame()
+
+    all_teams = teams_df.iloc[0]["teams"]
+    all_matches = []
+
+    with st.container(height=150):
+        for i, team in all_teams.iterrows():            
+            st.info(f"Fetching matches for {team}... i / {len(all_teams)}")
+            team_matches = get_teams_matches(competition_id, team)
+            all_matches.append(team_matches)
+
+    return pd.concat(all_matches, ignore_index=True)
