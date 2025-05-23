@@ -58,7 +58,7 @@ def main():
     
     # 📏 Add threshold slider for big chance definition
     big_chance_threshold = st.slider(
-        "Define what xG value counts as a Big Chance",
+        "Define what xG value counts as a Big Chance: (Changing from 0.2 will need new data to be fetched)",
         min_value=0.1,
         max_value=0.99,
         value=0.2,
