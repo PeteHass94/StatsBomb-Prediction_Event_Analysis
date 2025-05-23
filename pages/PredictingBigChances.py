@@ -23,14 +23,26 @@ sidebar_container = st.sidebar.container()
 st.header("StatsBomb py", divider=True)
 st.text("Getting the data")
 
+# def get_cached_matches(competition_id, big_chance_threshold, data_dir='data'):
+#     filename = f"{data_dir}/matches_comp_{competition_id}_thresh_{big_chance_threshold}.csv"
+#     if os.path.exists(filename):
+#         return pd.read_csv(filename)
+#     else:
+#         matches = dataFetcher.get_all_teams_matches(competition_id, big_chance_threshold)
+#         matches.to_csv(filename, index=False)
+#         return matches
+
 def get_cached_matches(competition_id, big_chance_threshold, data_dir='data'):
-    filename = f"{data_dir}/matches_comp_{competition_id}_thresh_{big_chance_threshold}.csv"
+    filename = f"{data_dir}/matches_comp_{competition_id}_thresh_{big_chance_threshold}.pkl"
+    
     if os.path.exists(filename):
-        return pd.read_csv(filename)
+        return pd.read_pickle(filename)
     else:
         matches = dataFetcher.get_all_teams_matches(competition_id, big_chance_threshold)
-        matches.to_csv(filename, index=False)
-        return matches
+        matches.to_pickle(filename)
+
+        matches1 = pd.read_pickle(filename)
+        return matches1
 
 
 def main():
@@ -135,6 +147,7 @@ def main():
     selected_match = matches[matches['match_summary'] == selected_match_name].iloc[0]
     
     selected_match.index.name = 'bin'
+
     goals_scored_df = pd.DataFrame(selected_match['goals_scored'])
     goals_conceded_df = pd.DataFrame(selected_match['goals_conceded'])
     
