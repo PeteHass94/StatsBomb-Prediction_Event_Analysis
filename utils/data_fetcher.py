@@ -321,7 +321,7 @@ def add_future_big_chance_labels_per_bin(xg_for, xg_against, threshold=0.2, hori
     return big_chance_for, big_chance_against
 
 
-def get_match_events_timeline(match, team_name, bin_width=10, rolling_window=10, horizon_bins=1, threshold=0.2):
+def get_match_events_timeline(match, team_name, bin_width=10, rolling_window=10, horizon_bins=1):
     # Load and process events
     events = process_match_events(get_match_events(match['match_id']))
     
@@ -444,7 +444,7 @@ def get_match_events_timeline(match, team_name, bin_width=10, rolling_window=10,
     # Future labels
     
     df['goal_scored_next_10'], df['goal_conceded_next_10']  = add_future_goal_labels_per_bin(binned_goals, binned_conceded, horizon_bins=horizon_bins)
-    df['big_chance_for_next_10'], df['big_chance_against_next_10'] = add_future_big_chance_labels_per_bin(binned_xg_for, binned_xg_against, horizon_bins=horizon_bins, threshold=threshold)
+    # df['big_chance_for_next_10'], df['big_chance_against_next_10'] = add_future_big_chance_labels_per_bin(binned_xg_for, binned_xg_against, horizon_bins=horizon_bins, threshold=threshold)
 
     return {
         "match_time": max_time,
@@ -456,7 +456,7 @@ def get_match_events_timeline(match, team_name, bin_width=10, rolling_window=10,
     }
     
 @st.cache_data
-def get_all_teams_matches(competition_id, threshold=0.2, horizon_bins=1):
+def get_all_teams_matches(competition_id):
     competitions = get_competition_teams_matches()
     teams_df = competitions[competitions["competition_id"] == competition_id]
 
@@ -470,7 +470,7 @@ def get_all_teams_matches(competition_id, threshold=0.2, horizon_bins=1):
     with st.container(height=150):
         for i, team in enumerate(all_teams):            
             st.info(f"Fetching matches for {team}... {i + 1} / {len(all_teams)}")
-            team_matches = get_teams_matches(competition_id, team, threshold=threshold)
+            team_matches = get_teams_matches(competition_id, team)
             all_matches.append(team_matches)
 
     return pd.concat(all_matches, ignore_index=True)

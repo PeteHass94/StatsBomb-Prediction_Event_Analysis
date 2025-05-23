@@ -20,7 +20,7 @@ sidebar_container = add_common_page_elements()
 page_container = st.sidebar.container()
 sidebar_container = st.sidebar.container()
 
-st.header("StatsBomb py", divider=True)
+st.header("Predicting xG Chance with XGBoost", divider=True)
 st.text("Getting the data")
 
 # def get_cached_matches(competition_id, big_chance_threshold, data_dir='data'):
@@ -32,13 +32,13 @@ st.text("Getting the data")
 #         matches.to_csv(filename, index=False)
 #         return matches
 
-def get_cached_matches(competition_id, big_chance_threshold, data_dir='data'):
-    filename = f"{data_dir}/matches_comp_{competition_id}_thresh_{big_chance_threshold}.pkl"
+def get_cached_matches(competition_id, data_dir='data'):
+    filename = f"{data_dir}/matches_comp_{competition_id}.pkl"
     
     if os.path.exists(filename):
         return pd.read_pickle(filename)
     else:
-        matches = dataFetcher.get_all_teams_matches(competition_id, big_chance_threshold)
+        matches = dataFetcher.get_all_teams_matches(competition_id)
         matches.to_pickle(filename)
 
         matches1 = pd.read_pickle(filename)
@@ -55,8 +55,12 @@ def main():
     st.dataframe(competitions[["competition_name", "season_name","competition_id", "season_id", "matches", "teams count", "teams"]])
     st.text(f"Total Competitions: {len(competitions)}, Total Teams: {competitions['teams count'].sum()}, Total Matches: {competitions['matches'].sum()}")
 
+    for competition_id in competitions['competition_id']:
+        matches_all = get_cached_matches(competition_id)
+        
+    
     # Step 1: User selects competition
-    selected_competition_name = st.sidebar.selectbox("Competition", competitions["competition_name"].unique())
+    selected_competition_name = st.selectbox("Competition", competitions["competition_name"].unique())
     comp = competitions.query('competition_name == @selected_competition_name')
 
     # Step 2: Combine team lists and remove duplicates
@@ -65,10 +69,11 @@ def main():
     
     all_teams = [team for sublist in comp["teams"] for team in sublist]
     # unique_teams = list(all_teams)
-    
+      
+    st.subheader(f"Selected Competition: {selected_competition_name}")
 
     
-    # 📏 Add threshold slider for big chance definition
+     # 📏 Add threshold slider for big chance definition
     big_chance_threshold = st.slider(
         "Define what xG value counts as a Big Chance: (Changing from 0.2 will need new data to be fetched)",
         min_value=0.1,
@@ -77,15 +82,14 @@ def main():
         step=0.01,
         help="Bins with xG above this threshold will be considered a big chance"
     )
+    st.text(f"Big Chance Threshold: {big_chance_threshold}")
     
-    
-    st.subheader(f"Selected Competition: {selected_competition_name}")
-
     # matches = dataFetcher.get_teams_matches(comp.competition_id.iloc[0], selected_team_name)
     # matches = dataFetcher.get_all_teams_matches(comp.competition_id.iloc[0], big_chance_threshold)
 
     comp_id = comp.competition_id.iloc[0]
-    matches = get_cached_matches(comp_id, big_chance_threshold)
+    matches = get_cached_matches(comp_id)
+    matches['big_chance_for_next_10'], matches['big_chance_against_next_10'] = dataFetcher.add_future_big_chance_labels_per_bin(matches['binned_xg_for'], matches['binned_xg_against'], threshold=big_chance_threshold)
 
     
     # Step 3: Team selectbox
