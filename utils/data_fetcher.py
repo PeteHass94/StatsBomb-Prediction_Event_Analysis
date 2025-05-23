@@ -303,6 +303,10 @@ def add_future_big_chance_labels_per_bin(xg_for, xg_against, threshold=0.2, hori
     Returns:
         Tuple of (big_chance_for_next_10, big_chance_against_next_10) — both lists of len = len(xg) - horizon
     """
+    # Flatten values in case they're wrapped in a list (e.g., [0.23])
+    xg_for = [v[0] if isinstance(v, list) else v for v in xg_for]
+    xg_against = [v[0] if isinstance(v, list) else v for v in xg_against]
+    
     num_bins = len(xg_for)
     big_chance_for = []
     big_chance_against = []

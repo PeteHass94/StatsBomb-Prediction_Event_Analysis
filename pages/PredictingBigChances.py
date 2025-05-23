@@ -89,7 +89,16 @@ def main():
 
     comp_id = comp.competition_id.iloc[0]
     matches = get_cached_matches(comp_id)
-    matches['big_chance_for_next_10'], matches['big_chance_against_next_10'] = dataFetcher.add_future_big_chance_labels_per_bin(matches['binned_xg_for'], matches['binned_xg_against'], threshold=big_chance_threshold)
+    matches[['big_chance_for_next_10', 'big_chance_against_next_10']] = matches.apply(
+        lambda row: pd.Series(
+            dataFetcher.add_future_big_chance_labels_per_bin(
+                row['binned_xg_for'],
+                row['binned_xg_against'],
+                threshold=big_chance_threshold
+            )
+        ),
+        axis=1
+    )
 
     
     # Step 3: Team selectbox
