@@ -47,11 +47,21 @@ def main():
     
 
     
+    # 📏 Add threshold slider for big chance definition
+    big_chance_threshold = st.slider(
+        "Define what xG value counts as a Big Chance",
+        min_value=0.1,
+        max_value=0.99,
+        value=0.2,
+        step=0.01,
+        help="Bins with xG above this threshold will be considered a big chance"
+    )
+    
     
     st.subheader(f"Selected Competition: {selected_competition_name}")
 
     # matches = dataFetcher.get_teams_matches(comp.competition_id.iloc[0], selected_team_name)
-    matches = dataFetcher.get_all_teams_matches(comp.competition_id.iloc[0])
+    matches = dataFetcher.get_all_teams_matches(comp.competition_id.iloc[0], big_chance_threshold)
     
     # Step 3: Team selectbox
     selected_team_name = st.selectbox("🎯 Select a team to see their stats:", sorted(all_teams))  # sort for easier UX

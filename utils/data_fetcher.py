@@ -143,7 +143,7 @@ def get_competition_teams_matches():
     return competitions
 
 @st.cache_data
-def get_teams_matches(competition_id, team):
+def get_teams_matches(competition_id, team, threshold=0.2):
     competitions = get_competitions()
     seasons = competitions[competitions['competition_id'] == competition_id]
 
@@ -168,7 +168,7 @@ def get_teams_matches(competition_id, team):
             venue = 'Home' if is_home else 'Away'
 
             # Get timeline events
-            events = get_match_events_timeline(match_row, team)
+            events = get_match_events_timeline(match_row, team, threshold=threshold)
             if events is None:
                 st.warning(f"No events found for match ID {match_row['match_id']}.")
                 continue
@@ -290,7 +290,7 @@ def add_future_goal_labels_per_bin(goals_scored, goals_conceded, horizon_bins=1)
     return scored_labels, conceded_labels
 
 
-def add_future_big_chance_labels_per_bin(xg_for, xg_against, threshold=0.38, horizon_bins=1):
+def add_future_big_chance_labels_per_bin(xg_for, xg_against, threshold=0.2, horizon_bins=1):
     """
     Generate binary labels per bin for big chances (based on xG threshold) in the next N bins.
 
@@ -321,7 +321,7 @@ def add_future_big_chance_labels_per_bin(xg_for, xg_against, threshold=0.38, hor
     return big_chance_for, big_chance_against
 
 
-def get_match_events_timeline(match, team_name, bin_width=10, rolling_window=10, horizon_bins=1):
+def get_match_events_timeline(match, team_name, bin_width=10, rolling_window=10, horizon_bins=1, threshold=0.2):
     # Load and process events
     events = process_match_events(get_match_events(match['match_id']))
     
@@ -444,7 +444,7 @@ def get_match_events_timeline(match, team_name, bin_width=10, rolling_window=10,
     # Future labels
     
     df['goal_scored_next_10'], df['goal_conceded_next_10']  = add_future_goal_labels_per_bin(binned_goals, binned_conceded, horizon_bins=horizon_bins)
-    df['big_chance_for_next_10'], df['big_chance_against_next_10'] = add_future_big_chance_labels_per_bin(binned_xg_for, binned_xg_against, horizon_bins=horizon_bins)
+    df['big_chance_for_next_10'], df['big_chance_against_next_10'] = add_future_big_chance_labels_per_bin(binned_xg_for, binned_xg_against, horizon_bins=horizon_bins, threshold=threshold)
 
     return {
         "match_time": max_time,
@@ -456,7 +456,7 @@ def get_match_events_timeline(match, team_name, bin_width=10, rolling_window=10,
     }
     
 @st.cache_data
-def get_all_teams_matches(competition_id):
+def get_all_teams_matches(competition_id, threshold=0.2, horizon_bins=1):
     competitions = get_competition_teams_matches()
     teams_df = competitions[competitions["competition_id"] == competition_id]
 
@@ -468,9 +468,9 @@ def get_all_teams_matches(competition_id):
     all_matches = []
 
     with st.container(height=150):
-        for i, team in all_teams.iterrows():            
-            st.info(f"Fetching matches for {team}... i / {len(all_teams)}")
-            team_matches = get_teams_matches(competition_id, team)
+        for i, team in enumerate(all_teams):            
+            st.info(f"Fetching matches for {team}... {i + 1} / {len(all_teams)}")
+            team_matches = get_teams_matches(competition_id, team, threshold=threshold)
             all_matches.append(team_matches)
 
     return pd.concat(all_matches, ignore_index=True)
