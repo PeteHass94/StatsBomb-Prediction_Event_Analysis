@@ -4,6 +4,7 @@ import copy
 
 import streamlit as st
 import pandas as pd
+import os
 
 import utils.data_fetcher as dataFetcher
 import modules.visuals as visuals
@@ -22,6 +23,14 @@ sidebar_container = st.sidebar.container()
 st.header("StatsBomb py", divider=True)
 st.text("Getting the data")
 
+def get_cached_matches(competition_id, big_chance_threshold, data_dir='data'):
+    filename = f"{data_dir}/matches_comp_{competition_id}_thresh_{big_chance_threshold}.csv"
+    if os.path.exists(filename):
+        return pd.read_csv(filename)
+    else:
+        matches = dataFetcher.get_all_teams_matches(competition_id, big_chance_threshold)
+        matches.to_csv(filename, index=False)
+        return matches
 
 
 def main():
@@ -61,7 +70,11 @@ def main():
     st.subheader(f"Selected Competition: {selected_competition_name}")
 
     # matches = dataFetcher.get_teams_matches(comp.competition_id.iloc[0], selected_team_name)
-    matches = dataFetcher.get_all_teams_matches(comp.competition_id.iloc[0], big_chance_threshold)
+    # matches = dataFetcher.get_all_teams_matches(comp.competition_id.iloc[0], big_chance_threshold)
+
+    comp_id = comp.competition_id.iloc[0]
+    matches = get_cached_matches(comp_id, big_chance_threshold)
+
     
     # Step 3: Team selectbox
     selected_team_name = st.selectbox("🎯 Select a team to see their stats:", sorted(all_teams))  # sort for easier UX
