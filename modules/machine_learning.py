@@ -116,7 +116,6 @@ def train_and_evaluate_model(df, target_col):
         model = XGBClassifier(use_label_encoder=False, eval_metric='logloss')
         model.fit(X_train, y_train)
 
-        st.subheader(f"📊 {lab} Model Evaluation")
         st.text(f"Train Size: {len(X_train)}, Test Size: {len(X_test)}")
         st.text(f"Test Accuracy: {model.score(X_test, y_test):.2f}")
         st.text(f"ROC AUC: {roc_auc_score(y_test, model.predict_proba(X_test)[:, 1]):.2f}")

@@ -60,7 +60,7 @@ def main():
         
     
     # Step 1: User selects competition
-    selected_competition_name = st.selectbox("Competition", competitions["competition_name"].unique())
+    selected_competition_name = st.sidebar.selectbox("Competition", competitions["competition_name"].unique())
     comp = competitions.query('competition_name == @selected_competition_name')
 
     # Step 2: Combine team lists and remove duplicates
@@ -194,7 +194,7 @@ def main():
                 against_name=a_col
             )
             
-    
+    st.subheader("📊 Big Chance Model Evaluation")
     # model_for, model_against = ml.train_big_chance_prediction_models(matches)
     ml.train_big_chance_prediction_models(matches)
     
