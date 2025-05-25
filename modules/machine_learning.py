@@ -5,6 +5,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, roc_auc_score
 import streamlit as st
 import modules.visuals as visuals
+import time
 
 # Feature types
 binned_columns = [
@@ -107,6 +108,11 @@ def train_and_evaluate_model(df, target_col):
     features = [col for col in df.columns if col.startswith("binned_") or col.startswith("rolling_")]
 
     train_idx, test_idx = get_train_test_split_indices(df)
+    
+    st.subheader("📈 Model Training and Evaluation")
+    
+    with st.spinner("Processing...", show_time=False):
+        time.sleep(15)
     
     for t_col, lab in zip(target_cols, labels):
     

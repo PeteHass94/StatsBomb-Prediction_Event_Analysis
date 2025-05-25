@@ -62,7 +62,14 @@ def plot_xg_histograms(binned_for, binned_against, goals_scored, goals_conceded,
         xaxis_title="Match Time (mins)",
         yaxis_title="Value",
         barmode='group',
-        showlegend=True
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=-0.25,
+            xanchor="center",
+            x=0.5
+        )
     )
     st.plotly_chart(fig, use_container_width=True)
     
@@ -102,7 +109,14 @@ def plot_rolling_xg(rolling_for, rolling_against, goals_scored, goals_conceded, 
         title=f"{for_name} and {against_name} Rolling Line Chart",
         xaxis_title="Match Time (mins)",
         yaxis_title="Rolling value",
-        showlegend=True
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=-0.25,
+            xanchor="center",
+            x=0.5
+        )
     )
     st.plotly_chart(fig, use_container_width=True)
 
