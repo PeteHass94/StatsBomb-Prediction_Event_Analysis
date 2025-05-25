@@ -53,7 +53,7 @@ def plot_xg_histograms(binned_for, binned_against, goals_scored, goals_conceded,
         tickmode='linear',
         tick0=0,           # Start at 0
         dtick=10,          # Show tick every 10 minutes
-        range=[0, 100],
+        range=[0, 105],
         title_text="Minute"
     )
     
@@ -101,7 +101,7 @@ def plot_rolling_xg(rolling_for, rolling_against, goals_scored, goals_conceded, 
         tickmode='linear',
         tick0=0,           # Start at 0
         dtick=10,          # Show tick every 10 minutes
-        range=[0, 100],
+        range=[0, 105],
         title_text="Minute"
     )
     
