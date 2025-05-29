@@ -168,7 +168,7 @@ def get_teams_matches(competition_id, team, threshold=0.2):
             venue = 'Home' if is_home else 'Away'
 
             # Get timeline events
-            events = get_match_events_timeline(match_row, team, threshold=threshold)
+            events = get_match_events_timeline(match_row, team)
             if events is None:
                 st.warning(f"No events found for match ID {match_row['match_id']}.")
                 continue
@@ -225,8 +225,8 @@ def get_teams_matches(competition_id, team, threshold=0.2):
                 
                 "goal_scored_next_10": binned_rolling_df['goal_scored_next_10'].tolist(),
                 "goal_conceded_next_10": binned_rolling_df['goal_conceded_next_10'].tolist(),
-                "big_chance_for_next_10": binned_rolling_df['big_chance_for_next_10'].tolist(),
-                "big_chance_against_next_10": binned_rolling_df['big_chance_against_next_10'].tolist()
+                # "big_chance_for_next_10": binned_rolling_df['big_chance_for_next_10'].tolist(),
+                # "big_chance_against_next_10": binned_rolling_df['big_chance_against_next_10'].tolist()
             }
 
             # Add to list
