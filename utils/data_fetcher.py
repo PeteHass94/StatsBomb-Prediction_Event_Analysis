@@ -27,8 +27,27 @@ def fetch_with_retries(fetch_function, retries=5, lineup=False, team="", **kwarg
     st.error(f"Failed to fetch data after {retries} retries.")
     return pd.DataFrame()
 
+def parse_timestamp(ts_str):
+    """Convert timestamp string 'HH:MM:SS.MS' to timedelta"""
+    return datetime.strptime(ts_str, "%H:%M:%S.%f") - datetime.strptime("00:00:00.000", "%H:%M:%S.%f")
+
+
+def compute_time_value(row, max_time_period1):
+        if pd.isna(row['timestamp']):
+            return np.nan
+        if row['period'] == 1:
+            base_time = parse_timestamp(row['timestamp']) 
+        elif row['period'] == 2:
+            base_time = parse_timestamp(row['timestamp']) + max_time_period1
+        total_minutes = base_time.total_seconds() / 60
+        return round(total_minutes, 2)
+
+
 def process_match_events(match_events):
     if not match_events.empty:
+        max_time_P1 = parse_timestamp(match_events[match_events['period'] == 1]['timestamp'].max())        
+        match_events['timeValue'] = match_events.apply(lambda row: compute_time_value(row, max_time_period1=max_time_P1), axis=1)
+        
         match_events[['location_x', 'location_y']] = match_events['location'].apply(pd.Series)
         match_events[['carry_end_location_x', 'carry_end_location_y']] = match_events['carry_end_location'].apply(pd.Series)
         match_events[['pass_end_location_x', 'pass_end_location_y']] = match_events['pass_end_location'].apply(pd.Series)
@@ -42,9 +61,6 @@ def process_match_events(match_events):
 
 
 
-def parse_timestamp(ts_str):
-    """Convert timestamp string 'HH:MM:SS.MS' to timedelta"""
-    return datetime.strptime(ts_str, "%H:%M:%S.%f") - datetime.strptime("00:00:00.000", "%H:%M:%S.%f")
 
 
 # Cached API calls
@@ -289,7 +305,6 @@ def add_future_goal_labels_per_bin(goals_scored, goals_conceded, horizon_bins=1)
     
     return scored_labels, conceded_labels
 
-
 def add_future_big_chance_labels_per_bin(xg_for, xg_against, threshold=0.2, horizon_bins=1):
     """
     Generate binary labels per bin for big chances (based on xG threshold) in the next N bins.
@@ -329,28 +344,15 @@ def get_match_events_timeline(match, team_name, bin_width=10, rolling_window=10,
     # Load and process events
     events = process_match_events(get_match_events(match['match_id']))
     
-    max_time_p1 = parse_timestamp(events[events['period'] == 1]['timestamp'].max())
-    
-    def compute_time_value(row, max_time_period1=max_time_p1):
-        if pd.isna(row['timestamp']):
-            return np.nan
-        if row['period'] == 1:
-            base_time = parse_timestamp(row['timestamp']) 
-        elif row['period'] == 2:
-            base_time = parse_timestamp(row['timestamp']) + max_time_period1
-        total_minutes = base_time.total_seconds() / 60
-        return round(total_minutes, 2)
-
-    events['timeValue'] = events.apply(compute_time_value, axis=1)
     max_time = events['timeValue'].max()
     
     # Filter events
     team_events = events[events['team'] == team_name]
     opp_events = events[events['team'] != team_name]
 
-    # Collect relevant data
-    goals_scored = team_events[(team_events['type'] == "Shot") & (team_events['shot_outcome'] == "Goal")][['timeValue', 'period']]
-    goals_conceded = opp_events[(opp_events['type'] == "Shot") & (opp_events['shot_outcome'] == "Goal")][['timeValue', 'period']]
+    # Collect relevant data(type == 'Shot' or type == 'Own Goal Against')
+    goals_scored = team_events[((team_events['type'] == "Shot") & (team_events['shot_outcome'] == "Goal")) | (team_events['type'] == 'Own Goal For')][['timeValue', 'period']]
+    goals_conceded = opp_events[((opp_events['type'] == "Shot") & (opp_events['shot_outcome'] == "Goal")) | (opp_events['type'] == 'Own Goal For')][['timeValue', 'period']]
     shots_attempted = team_events[team_events['type'] == "Shot"][['timeValue', 'shot_statsbomb_xg']]
     shots_conceded = opp_events[opp_events['type'] == "Shot"][['timeValue', 'shot_statsbomb_xg']]
 

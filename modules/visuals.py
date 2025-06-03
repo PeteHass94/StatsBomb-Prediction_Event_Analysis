@@ -2,6 +2,9 @@ import plotly.graph_objects as go
 import streamlit as st
 import numpy as np
 
+from mplsoccer import VerticalPitch, Pitch
+import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
 
 def goal_lines(goals_df, bin_width=10, color='blue', name='Goal'):
     
@@ -183,3 +186,177 @@ def plot_gantt_chart(sample, lab):
     )
 
     st.plotly_chart(fig, use_container_width=True)
+
+
+
+def plot_pass_map(df, team_name="", pass_type=""):
+    pitch = Pitch(pitch_type='statsbomb', line_zorder=2)
+    fig, ax = pitch.draw(figsize=(10, 6))
+
+    home_df = df[df['team'] == team_name]
+    away_df = df[df['team'] != team_name]
+
+    pitch.arrows(home_df['location_x'], home_df['location_y'],
+                 home_df['pass_end_location_x'], home_df['pass_end_location_y'],
+                 ax=ax, color='blue', label='Home', width=2, headwidth=3)
+
+    pitch.arrows(away_df['location_x'], away_df['location_y'],
+                 away_df['pass_end_location_x'], away_df['pass_end_location_y'],
+                 ax=ax, color='red', label='Away', width=2, headwidth=3)
+
+    ax.legend()
+    ax.set_title(f"Pass Map: {team_name}", fontsize=14)
+    st.pyplot(fig)
+
+def plot_carry_map(df, team_name="" , carry_type=""):
+    pitch = Pitch(pitch_type='statsbomb', line_zorder=2)
+    fig, ax = pitch.draw(figsize=(10, 6))
+
+    home_df = df[df['team'] == team_name]
+    away_df = df[df['team'] != team_name]
+
+    pitch.arrows(home_df['location_x'], home_df['location_y'],
+                 home_df['carry_end_location_x'], home_df['carry_end_location_y'],
+                 ax=ax, color='blue', label='Home', width=2, headwidth=3)
+
+    pitch.arrows(away_df['location_x'], away_df['location_y'],
+                 away_df['carry_end_location_x'], away_df['carry_end_location_y'],
+                 ax=ax, color='red', label='Away', width=2, headwidth=3)
+
+    ax.legend()
+    ax.set_title(f"Carry Map: {team_name}", fontsize=14)
+    st.pyplot(fig)
+
+
+def PitchPlotHalf():
+    return VerticalPitch(
+        pitch_type='statsbomb',
+        pitch_color='#e0e0e0',
+        line_color='black',
+        stripe=True,
+        stripe_color='#cccccc',
+        linewidth=0.5,
+        line_alpha=0.75,
+        goal_type='box',
+        half=True
+    )
+
+def plot_shot_map(df, team_name="", threshold=0.2):
+    df['team'] = df['team'].apply(lambda x: x['name'] if isinstance(x, dict) else x)
+    team_name_clean = team_name.strip().lower()
+    teams = df['team'].dropna().unique()
+    opp_team = next((t for t in teams if t.strip().lower() != team_name_clean), "")
+
+    team_color = "#5BAEE3"
+    opp_color = "#E35B5B"
+    shot_color = "#8E8668"
+    shot_size = 50
+
+    team_df = df[df['team'].str.strip().str.lower() == team_name_clean]
+    opp_df = df[df['team'].str.strip().str.lower() != team_name_clean]
+
+    pitch = PitchPlotHalf()
+    fig, axs = plt.subplots(1, 2, figsize=(12, 5), constrained_layout = True, dpi=200, facecolor='#2C2C3A')  # Two side-by-side half pitches
+
+    # Define a map from outcome to edge color
+    outcome_colours = {
+        'Goal': '#5BE381',
+        'Saved To Post': '#E3C65B',        
+        'Saved': '#E3C65B',
+        'Saved Off T': '#5B67E3',        
+        'Blocked': '#5B67E3',
+        'Off T': '#5B67E3',
+        'Post': '#5B67E3',
+        'Wayward': '#5B67E3'
+    }
+    # Ensure all outcomes have a color, default to black if not found
+    
+
+    # # Map edge colors with fallback
+    # team_edgecolors = team_df['shot_outcome'].map(lambda x: outcome_colours.get(x, 'black'))
+    # opp_edgecolors = opp_df['shot_outcome'].map(lambda x: outcome_colours.get(x, 'black'))
+
+    # Define high and low xG masks  
+    team_high = team_df[team_df['shot_statsbomb_xg'] >= threshold]
+    team_low = team_df[team_df['shot_statsbomb_xg'] < threshold]
+
+    opp_high = opp_df[opp_df['shot_statsbomb_xg'] >= threshold]
+    opp_low = opp_df[opp_df['shot_statsbomb_xg'] < threshold]
+
+    def get_stats(df, label):
+        return f"{label}\nShots: {len(df)}, Goals: {sum(df['shot_outcome'] == 'Goal')}, Big Chances: {sum(df['shot_statsbomb_xg'] >= threshold)}, Total xG: {df['shot_statsbomb_xg'].sum():.2f}"
+
+    team_summary = get_stats(team_df, team_name)
+    opp_summary = get_stats(opp_df, opp_team)
+    
+    
+    # Team plots
+    pitch.draw(ax=axs[0])
+
+    # Low xG with circle
+    pitch.scatter(
+        team_low['location_x'], team_low['location_y'],
+        ax=axs[0], color=team_low['shot_outcome'].map(lambda x: outcome_colours.get(x, 'black')),
+        edgecolors='black',
+        s= shot_size, #(team_low['shot_statsbomb_xg'] * 2000) ** 0.5,
+        alpha=1, linewidth=0.75, marker='o'
+    )
+
+    # High xG with 'P'
+    pitch.scatter(
+        team_high['location_x'], team_high['location_y'],
+        ax=axs[0], color=team_high['shot_outcome'].map(lambda x: outcome_colours.get(x, 'black')),
+        edgecolors='black',
+        s= shot_size, #(team_high['shot_statsbomb_xg'] * 2000) ** 0.5,
+        alpha=1, linewidth=0.75, marker='X'
+    )
+
+    axs[0].set_title(f"{team_summary}", fontsize=10, color=team_color, fontweight='bold')
+
+    # Same for opponent
+    pitch.draw(ax=axs[1])
+
+    pitch.scatter(
+        opp_low['location_x'], opp_low['location_y'],
+        ax=axs[1], color=opp_low['shot_outcome'].map(lambda x: outcome_colours.get(x, 'black')),
+        edgecolors='black',
+        s=shot_size,
+        alpha=1, linewidth=0.75, marker='o'
+    )
+
+    pitch.scatter(
+        opp_high['location_x'], opp_high['location_y'],
+        ax=axs[1], color=opp_high['shot_outcome'].map(lambda x: outcome_colours.get(x, 'black')),
+        edgecolors='black',
+        s=shot_size,
+        alpha=1, linewidth=0.75, marker='X'
+    )
+
+    axs[1].set_title(f"{opp_summary}", fontsize=10, color=opp_color, fontweight='bold')
+
+    legend_ax = fig.add_axes([0.44, 0.05, 0.1, 0.25])  # [left, bottom, width, height]
+    legend_ax.axis("off")
+
+    # Draw white background
+    legend_ax.add_patch(Rectangle(
+        (0, 0), 1, 1, transform=legend_ax.transAxes,
+        edgecolor='grey', facecolor='lightgrey', alpha=0.85, zorder=0
+    ))
+
+    # Add text and example scatters
+    legend_ax.text(0.5, 0.9, 'Shot Key', fontsize=7, va='center', ha='center', transform=legend_ax.transAxes, fontweight='bold')
+    
+    legend_ax.text(0.55, 0.75, 'Big Chance:', fontsize=7, va='center', ha='right', transform=legend_ax.transAxes)
+    legend_ax.scatter(0.725, 0.755, s=shot_size, color=shot_color, edgecolor='black', marker='X', linewidth=0.75, transform=legend_ax.transAxes)
+    
+    legend_ax.text(0.55, 0.55, 'Goal:', fontsize=7, va='center', ha='right', transform=legend_ax.transAxes)
+    legend_ax.scatter(0.725, 0.555, s=shot_size, color=outcome_colours['Goal'], edgecolor='black', linewidth=0.75, transform=legend_ax.transAxes)
+
+    legend_ax.text(0.55, 0.35, 'On Target:', fontsize=7, va='center', ha='right', transform=legend_ax.transAxes)
+    legend_ax.scatter(0.725, 0.355, s=shot_size, color=outcome_colours['Saved'], edgecolor='black', linewidth=0.75, transform=legend_ax.transAxes)
+
+    legend_ax.text(0.55, 0.15, 'Off Target:', fontsize=7, va='center', ha='right', transform=legend_ax.transAxes)
+    legend_ax.scatter(0.725, 0.155, s=shot_size, color=outcome_colours['Off T'], edgecolor='black', linewidth=0.75, transform=legend_ax.transAxes)
+     
+    # fig.suptitle(f"Shot Map: {team_name} vs {opp_team}\n{team_summary}\n{opp_summary}", fontsize=10)
+    st.pyplot(fig, use_container_width=True)

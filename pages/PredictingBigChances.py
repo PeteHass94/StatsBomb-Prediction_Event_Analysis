@@ -23,14 +23,6 @@ sidebar_container = st.sidebar.container()
 st.header("Predicting xG Chance with XGBoost", divider=True)
 st.text("Getting the data")
 
-# def get_cached_matches(competition_id, big_chance_threshold, data_dir='data'):
-#     filename = f"{data_dir}/matches_comp_{competition_id}_thresh_{big_chance_threshold}.csv"
-#     if os.path.exists(filename):
-#         return pd.read_csv(filename)
-#     else:
-#         matches = dataFetcher.get_all_teams_matches(competition_id, big_chance_threshold)
-#         matches.to_csv(filename, index=False)
-#         return matches
 
 def get_cached_matches(competition_id, data_dir='data'):
     filename = f"{data_dir}/matches_comp_{competition_id}.pkl"
@@ -60,7 +52,7 @@ def main():
         
     
     # Step 1: User selects competition
-    selected_competition_name = st.sidebar.selectbox("Competition", competitions["competition_name"].unique())
+    selected_competition_name = st.sidebar.selectbox("🎯 Select a Competiton for its analysis:", competitions["competition_name"].unique())
     comp = competitions.query('competition_name == @selected_competition_name')
 
     # Step 2: Combine team lists and remove duplicates
@@ -102,7 +94,7 @@ def main():
 
     
     # Step 3: Team selectbox
-    selected_team_name = st.selectbox("🎯 Select a team to see their stats:", sorted(all_teams))  # sort for easier UX
+    selected_team_name = st.sidebar.selectbox("🎯 Select a team to see their stats:", sorted(all_teams))  # sort for easier UX
     # team_comp_rows = comp[comp["teams"].apply(lambda team_list: selected_team_name in team_list)]
     # team_comp_rows_str = ", ".join(
     #                         [f"{comp_row['competition_name']} {comp_row['season_name']}" for _, comp_row in team_comp_rows.iterrows()]
@@ -125,7 +117,7 @@ def main():
         ("rolling_box_carries_for", "rolling_box_carries_against")
     ]  
     
-    st.text(f"Selected Team: {selected_team_name}")
+    st.subheader(f"Selected Team: {selected_team_name}")
     
     team_matches = matches[matches["team"] == selected_team_name]
     # Flatten binned_columns and rolling_columns
@@ -193,10 +185,65 @@ def main():
                 for_name=f_col,
                 against_name=a_col
             )
+    
+    # Load and process events
+    selected_match_events = dataFetcher.process_match_events(dataFetcher.get_match_events(selected_match['match_id']))
+    
+    # Create time bins
+    time_bins = [(i, i + 10) for i in range(0, 100, 10)]
+    time_labels = [f"{start}-{end}" for start, end in time_bins]
+
+    # Assign a time label column (if not already done)
+    selected_match_events['bin_label'] = selected_match_events['timeValue'].apply(
+        lambda x: f"{int(x // 10 * 10)}-{int((x // 10 + 1) * 10)}" if pd.notna(x) else None
+    )
+
+    # UI: Let user select time bins
+    selected_bins = st.multiselect(
+        "Filter by 10-minute time intervals:",
+        options=time_labels,
+        default=time_labels,
+        key="time_bin_selector"
+    )
+
+    # Filter shots_df
+    shots_df = selected_match_events[
+        (selected_match_events['type'] == 'Shot') &
+        (selected_match_events['bin_label'].isin(selected_bins))
+    ]
+    
+    
+    event_tabs = st.tabs(["Shots", "Passes Final Third", "Passes Box", "Carries Final Third", "Carries Box"])
+    # shots_df = selected_match_events[selected_match_events['type'] == 'Shot']
+    passes_df = selected_match_events[selected_match_events['type'] == 'Pass']    
+    carries_df = selected_match_events[selected_match_events['type'] == 'Carry']
+    
+    team_name = selected_match['team']
+
+    with event_tabs[0]:
+        visuals.plot_shot_map(shots_df, team_name=team_name)
+
+    with event_tabs[1]:
+        st.subheader("Passes in Final Third")
+        visuals.plot_pass_map(passes_df, team_name=team_name, pass_type="Final Third")
+
+    with event_tabs[2]:
+        st.subheader("Passes into the Box")
+        visuals.plot_pass_map(passes_df, team_name=team_name, pass_type="Box")
+
+    with event_tabs[3]:
+        st.subheader("Carries in Final Third")
+        visuals.plot_carry_map(carries_df, team_name=team_name, carry_type="Final Third")
+
+    with event_tabs[4]:
+        st.subheader("Carries into the Box")
+        visuals.plot_carry_map(carries_df, team_name=team_name, carry_type="Box")     
+            
+    
             
     st.subheader("📊 Big Chance Model Evaluation")
     # model_for, model_against = ml.train_big_chance_prediction_models(matches)
-    ml.train_big_chance_prediction_models(matches)
+    ml.train_big_chance_prediction_models(matches[matches['team'] == selected_team_name])
     
 if __name__ == "__main__":
     main()

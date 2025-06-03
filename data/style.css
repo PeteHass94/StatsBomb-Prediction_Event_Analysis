@@ -303,3 +303,7 @@ button[data-testid="baseButton-primary"] {
 .stChatInput textarea{
     background-color: white !important;
 }
+
+.st-key-event_container {
+    max-width: 800px;
+}
