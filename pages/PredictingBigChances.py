@@ -7,6 +7,7 @@ import copy
 import streamlit as st
 import pandas as pd
 import os
+import time
 
 import utils.data_fetcher as dataFetcher
 import modules.visuals as visuals
@@ -291,6 +292,9 @@ def main():
     
     team_name = selected_match['team']
 
+    with st.spinner("Creating Visuals...", show_time=True):
+        time.sleep(15)
+    
     # Uses StatsBomb events (passes, shots, carries) to generate pitch maps, split by type and zone.
     # Good for storytelling around tactical phases and player involvement.
     

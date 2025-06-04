@@ -98,8 +98,9 @@ def get_train_test_split_indices(df, match_id_col='match_id', test_ratio=0.2):
     safe_columns = [col for col in [
         "match_id", "bin_range", "team_match_summary", "big_chance_for_next_10", "big_chance_against_next_10"        
     ] if col in df.columns]
-
-    st.subheader("📊 Match Bin Split")
+    selected_team_name1 = df["team"].unique()[0]
+    
+    st.subheader(f"📊 `{selected_team_name1}` Match Bin Split")
     st.expandable_train = st.expander(f"Show Train Match Bins - {len(train_idx)} rows")
     with st.expandable_train:
         st.markdown("### Train Match Bins")
