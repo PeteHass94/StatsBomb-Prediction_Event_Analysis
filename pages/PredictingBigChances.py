@@ -186,6 +186,8 @@ def main():
                 against_name=a_col
             )
     
+    st.subheader("Match Events Visualizations")
+    
     # Load and process events
     selected_match_events = dataFetcher.process_match_events(dataFetcher.get_match_events(selected_match['match_id']))
     
@@ -205,38 +207,34 @@ def main():
         default=time_labels,
         key="time_bin_selector"
     )
-
-    # Filter shots_df
-    shots_df = selected_match_events[
-        (selected_match_events['type'] == 'Shot') &
-        (selected_match_events['bin_label'].isin(selected_bins))
-    ]
     
+    filtered_match_events = selected_match_events[selected_match_events['bin_label'].isin(selected_bins)]    
     
     event_tabs = st.tabs(["Shots", "Passes Final Third", "Passes Box", "Carries Final Third", "Carries Box"])
-    # shots_df = selected_match_events[selected_match_events['type'] == 'Shot']
-    passes_df = selected_match_events[selected_match_events['type'] == 'Pass']    
-    carries_df = selected_match_events[selected_match_events['type'] == 'Carry']
+    shots_df = filtered_match_events[filtered_match_events['type'] == 'Shot']
+    passes_df = filtered_match_events[filtered_match_events['type'] == 'Pass']    
+    carries_df = filtered_match_events[filtered_match_events['type'] == 'Carry']
     
     team_name = selected_match['team']
 
     with event_tabs[0]:
+        st.subheader("Shot Map")
         visuals.plot_shot_map(shots_df, team_name=team_name)
 
     with event_tabs[1]:
-        st.subheader("Passes in Final Third")
+        st.subheader("Passes in Final Third (Completed Passes)")
         visuals.plot_pass_map(passes_df, team_name=team_name, pass_type="Final Third")
 
     with event_tabs[2]:
-        st.subheader("Passes into the Box")
+        st.subheader("Passes into the Box (Completed Passes)")
         visuals.plot_pass_map(passes_df, team_name=team_name, pass_type="Box")
 
     with event_tabs[3]:
-        st.subheader("Carries in Final Third")
+        st.subheader("Carries in Final Third (Completed Carries)")
         visuals.plot_carry_map(carries_df, team_name=team_name, carry_type="Final Third")
 
     with event_tabs[4]:
-        st.subheader("Carries into the Box")
+        st.subheader("Carries into the Box (Completed Carries)")
         visuals.plot_carry_map(carries_df, team_name=team_name, carry_type="Box")     
             
     

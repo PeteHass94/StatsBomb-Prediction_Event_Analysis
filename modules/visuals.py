@@ -5,6 +5,7 @@ import numpy as np
 from mplsoccer import VerticalPitch, Pitch
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
+import matplotlib.patheffects as path_effects
 
 def goal_lines(goals_df, bin_width=10, color='blue', name='Goal'):
     
@@ -188,45 +189,7 @@ def plot_gantt_chart(sample, lab):
     st.plotly_chart(fig, use_container_width=True)
 
 
-
-def plot_pass_map(df, team_name="", pass_type=""):
-    pitch = Pitch(pitch_type='statsbomb', line_zorder=2)
-    fig, ax = pitch.draw(figsize=(10, 6))
-
-    home_df = df[df['team'] == team_name]
-    away_df = df[df['team'] != team_name]
-
-    pitch.arrows(home_df['location_x'], home_df['location_y'],
-                 home_df['pass_end_location_x'], home_df['pass_end_location_y'],
-                 ax=ax, color='blue', label='Home', width=2, headwidth=3)
-
-    pitch.arrows(away_df['location_x'], away_df['location_y'],
-                 away_df['pass_end_location_x'], away_df['pass_end_location_y'],
-                 ax=ax, color='red', label='Away', width=2, headwidth=3)
-
-    ax.legend()
-    ax.set_title(f"Pass Map: {team_name}", fontsize=14)
-    st.pyplot(fig)
-
-def plot_carry_map(df, team_name="" , carry_type=""):
-    pitch = Pitch(pitch_type='statsbomb', line_zorder=2)
-    fig, ax = pitch.draw(figsize=(10, 6))
-
-    home_df = df[df['team'] == team_name]
-    away_df = df[df['team'] != team_name]
-
-    pitch.arrows(home_df['location_x'], home_df['location_y'],
-                 home_df['carry_end_location_x'], home_df['carry_end_location_y'],
-                 ax=ax, color='blue', label='Home', width=2, headwidth=3)
-
-    pitch.arrows(away_df['location_x'], away_df['location_y'],
-                 away_df['carry_end_location_x'], away_df['carry_end_location_y'],
-                 ax=ax, color='red', label='Away', width=2, headwidth=3)
-
-    ax.legend()
-    ax.set_title(f"Carry Map: {team_name}", fontsize=14)
-    st.pyplot(fig)
-
+### Pitch and Shot Map Functions
 
 def PitchPlotHalf():
     return VerticalPitch(
@@ -256,7 +219,7 @@ def plot_shot_map(df, team_name="", threshold=0.2):
     opp_df = df[df['team'].str.strip().str.lower() != team_name_clean]
 
     pitch = PitchPlotHalf()
-    fig, axs = plt.subplots(1, 2, figsize=(12, 5), constrained_layout = True, dpi=200, facecolor='#2C2C3A')  # Two side-by-side half pitches
+    fig, axs = plt.subplots(1, 2, figsize=(12, 5), constrained_layout = True, dpi=300, facecolor='#2C2C3A')  # Two side-by-side half pitches
 
     # Define a map from outcome to edge color
     outcome_colours = {
@@ -340,7 +303,7 @@ def plot_shot_map(df, team_name="", threshold=0.2):
     # Draw white background
     legend_ax.add_patch(Rectangle(
         (0, 0), 1, 1, transform=legend_ax.transAxes,
-        edgecolor='grey', facecolor='lightgrey', alpha=0.85, zorder=0
+        edgecolor='grey', facecolor='whitesmoke', alpha=0.7, zorder=0
     ))
 
     # Add text and example scatters
@@ -359,4 +322,167 @@ def plot_shot_map(df, team_name="", threshold=0.2):
     legend_ax.scatter(0.725, 0.155, s=shot_size, color=outcome_colours['Off T'], edgecolor='black', linewidth=0.75, transform=legend_ax.transAxes)
      
     # fig.suptitle(f"Shot Map: {team_name} vs {opp_team}\n{team_summary}\n{opp_summary}", fontsize=10)
+    st.pyplot(fig, use_container_width=True)
+    
+def plot_pass_map(df, team_name="", pass_type="Final Third"):
+
+    df['pass_outcome'] = df['pass_outcome'].fillna('Complete')
+    # df = df[df['pass_outcome'] == 'Complete']
+    
+    df['pass_type_category'] = df.apply(
+        lambda row: 'goal-assist' if row.get('pass_goal_assist', 0) == 1 else (
+            'shot-assist' if row.get('pass_shot_assist', 0) == 1 else 'other'
+        ),
+        axis=1
+    )
+
+    df['team'] = df['team'].apply(lambda x: x['name'] if isinstance(x, dict) else x)
+    team_name_clean = team_name.strip().lower()
+    teams = df['team'].dropna().unique()
+    opp_team = next((t for t in teams if t.strip().lower() != team_name_clean), "")
+
+    team_color = "#5BAEE3"
+    opp_color = "#E35B5B"
+    line_width = 1.5
+    line_alpha = 0.8
+    arrow_outline = [path_effects.withStroke(linewidth=0.25, foreground='black')]
+    
+    team_df = df[df['team'].str.strip().str.lower() == team_name_clean]
+    opp_df = df[df['team'].str.strip().str.lower() != team_name_clean]
+    
+    if pass_type == "Final Third":
+        team_df = team_df[team_df['pass_end_location_x'] >= 80]
+        opp_df = opp_df[opp_df['pass_end_location_x'] >= 80]
+    elif pass_type == "Box":
+        team_df = team_df[(team_df['pass_end_location_x'] >= 102) & (team_df['pass_end_location_y'].between(18, 62))]
+        opp_df = opp_df[(opp_df['pass_end_location_x'] >= 102) & (opp_df['pass_end_location_y'].between(18, 62))]
+    
+    pass_colors = {
+        'goal-assist': '#5BE381',
+        'shot-assist': '#E3C65B',
+        'other': '#5B67E3'
+    }
+    
+    pitch = PitchPlotHalf()
+    fig, axs = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True, dpi=300, facecolor='#2C2C3A')
+
+    def get_pass_stats(df, label, type=""):
+        total_passes = len(df)
+        completed = sum(df['pass_outcome'] == 'Complete')
+        pct_completed = (completed / total_passes * 100) if total_passes > 0 else 0
+        shot_assists = sum(df['pass_type_category'] == 'shot-assist')
+        goal_assists = sum(df['pass_type_category'] == 'goal-assist')
+        return f"{label}\n{type} Passes: {total_passes}  Completed: {pct_completed:.1f}%\n Shot Assists: {shot_assists}  Goal Assists: {goal_assists}"
+
+    team_summary = get_pass_stats(team_df, team_name, type=pass_type)
+    opp_summary = get_pass_stats(opp_df, opp_team, type=pass_type)
+
+    team_df = team_df[team_df['pass_outcome'] == 'Complete']
+    opp_df = opp_df[opp_df['pass_outcome'] == 'Complete']
+    
+    pitch.draw(ax=axs[0])
+    
+    for pass_type, color in pass_colors.items():
+        sub_df = team_df[team_df['pass_type_category'] == pass_type]
+        arrows = pitch.arrows(sub_df['location_x'], sub_df['location_y'],
+                    sub_df['pass_end_location_x'], sub_df['pass_end_location_y'],
+                    ax=axs[0], color=color, width=line_width, alpha=line_alpha)
+        # Apply black stroke outline
+        arrows.set_path_effects(arrow_outline)
+    
+    axs[0].set_title(team_summary, fontsize=10, color=team_color, fontweight='bold')
+
+    pitch.draw(ax=axs[1])
+    
+    for pass_type, color in pass_colors.items():
+        sub_df = opp_df[opp_df['pass_type_category'] == pass_type]
+        arrows = pitch.arrows(sub_df['location_x'], sub_df['location_y'],
+                    sub_df['pass_end_location_x'], sub_df['pass_end_location_y'],
+                    ax=axs[1], color=color, width=line_width, alpha=line_alpha)
+        # Apply black stroke outline
+        arrows.set_path_effects(arrow_outline)
+    
+    axs[1].set_title(opp_summary, fontsize=10, color=opp_color, fontweight='bold')
+
+    legend_ax = fig.add_axes([0.45, 0.05, 0.1, 0.2]) # [left, bottom, width, height]
+    legend_ax.axis("off")
+    legend_ax.add_patch(Rectangle((0, 0), 1, 1, transform=legend_ax.transAxes,
+                              edgecolor='grey', facecolor='whitesmoke', alpha=0.8, zorder=0))
+
+    # Title
+    legend_ax.text(0.5, 0.9, "Pass Key", fontsize=8, fontweight='bold',
+                ha='center', va='center', transform=legend_ax.transAxes)
+    
+    # Goal Assist
+    arrow1 = legend_ax.annotate('', xy=(0.8, 0.7), xytext=(0.6, 0.7),
+                                arrowprops=dict(arrowstyle='->', color='#5BE381', lw=2),
+                                xycoords='axes fraction')
+    legend_ax.text(0.55, 0.70, 'Goal Assist:', fontsize=7,
+                va='center', ha='right', transform=legend_ax.transAxes)
+
+    # Shot Assist
+    arrow2 = legend_ax.annotate('', xy=(0.8, 0.5), xytext=(0.6, 0.5),
+                                arrowprops=dict(arrowstyle='->', color='#E3C65B', lw=2),
+                                xycoords='axes fraction')
+    legend_ax.text(0.55, 0.50, 'Shot Assist:', fontsize=7,
+                va='center', ha='right', transform=legend_ax.transAxes)
+
+    # Other Pass
+    arrow3 = legend_ax.annotate('', xy=(0.8, 0.3), xytext=(0.6, 0.3),
+                                arrowprops=dict(arrowstyle='->', color='#5B67E3', lw=2),
+                                xycoords='axes fraction')
+    legend_ax.text(0.55, 0.30, 'Other Pass:', fontsize=7,
+                va='center', ha='right', transform=legend_ax.transAxes)   
+   
+    st.pyplot(fig, use_container_width=True)
+    
+
+def plot_carry_map(df, team_name="", carry_type="Final Third"):
+    df['team'] = df['team'].apply(lambda x: x['name'] if isinstance(x, dict) else x)
+    team_name_clean = team_name.strip().lower()
+    teams = df['team'].dropna().unique()
+    opp_team = next((t for t in teams if t.strip().lower() != team_name_clean), "")
+
+    team_color = "#5BAEE3"
+    opp_color = "#E35B5B"
+    line_width = 1.5
+    line_alpha = 0.8
+    arrow_outline = [path_effects.withStroke(linewidth=0.25, foreground='black')]
+
+    team_df = df[df['team'].str.strip().str.lower() == team_name_clean]
+    opp_df = df[df['team'].str.strip().str.lower() != team_name_clean]
+
+    if carry_type == "Final Third":
+        team_df = team_df[team_df['location_x'] >= 80]
+        opp_df = opp_df[opp_df['location_x'] >= 80]
+    elif carry_type == "Box":
+        team_df = team_df[(team_df['carry_end_location_x'] >= 102) & (team_df['carry_end_location_y'].between(18, 62))]
+        opp_df = opp_df[(opp_df['carry_end_location_x'] >= 102) & (opp_df['carry_end_location_y'].between(18, 62))]
+
+    pitch = PitchPlotHalf()
+    fig, axs = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True, dpi=300, facecolor='#2C2C3A')
+
+    def get_carry_stats(df, label, type=""):
+        return f"{label}\n{type} Carries: {len(df)}"
+
+    team_summary = get_carry_stats(team_df, team_name, type=carry_type)
+    opp_summary = get_carry_stats(opp_df, opp_team, type=carry_type)
+
+    pitch.draw(ax=axs[0])
+    arrows = pitch.arrows(team_df['location_x'], team_df['location_y'],
+                 team_df['carry_end_location_x'], team_df['carry_end_location_y'],
+                 ax=axs[0], color=team_color, width=line_width, alpha=line_alpha)
+    # Apply black stroke outline
+    arrows.set_path_effects(arrow_outline)
+    
+    axs[0].set_title(team_summary, fontsize=10, color=team_color, fontweight='bold')
+
+    pitch.draw(ax=axs[1])
+    arrows = pitch.arrows(opp_df['location_x'], opp_df['location_y'],
+                 opp_df['carry_end_location_x'], opp_df['carry_end_location_y'],
+                 ax=axs[1], color=opp_color, width=line_width, alpha=line_alpha)
+    # Apply black stroke outline
+    arrows.set_path_effects(arrow_outline)
+    axs[1].set_title(opp_summary, fontsize=10, color=opp_color, fontweight='bold')
+
     st.pyplot(fig, use_container_width=True)

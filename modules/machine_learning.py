@@ -112,7 +112,7 @@ def train_and_evaluate_model(df, target_col):
     st.subheader("📈 Model Training and Evaluation")
     
     with st.spinner("Processing...", show_time=True):
-        time.sleep(60)
+        time.sleep(45)
     
     for t_col, lab in zip(target_cols, labels):
     

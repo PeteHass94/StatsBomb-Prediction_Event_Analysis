@@ -127,3 +127,9 @@ footer {
     font-size: 0.8rem;
     color: var(--muted-text-color);
 }
+
+span[data-baseweb="tag"] {
+    background-color: #688E7D !important;
+    border-radius: 5px;
+    border: 1px solid var(--bg-color);
+}
