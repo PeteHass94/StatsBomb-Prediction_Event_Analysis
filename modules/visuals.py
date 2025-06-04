@@ -127,6 +127,16 @@ def plot_rolling_xg(rolling_for, rolling_against, goals_scored, goals_conceded, 
 def plot_gantt_chart(sample, lab):
     # After match_sample and sample have been defined
     st.subheader(f"📊 Timeline Comparison Gantt Chart for `{lab}`")
+    with st.expander("🧩 Show Legend"):
+        st.markdown(
+            """
+            - 🔵 **Blue** – Big chance (either predicted or actual)  
+            - ⚪ **Grey** – No big chance (either predicted or actual)  
+            - 🟢 **Green** – Correct prediction  
+            - 🔴 **Red** – Incorrect prediction
+            """
+        )
+    
 
     bin_ranges = sample["bin_range"].tolist()
     predicted_labels = sample["Predicted_Label"].tolist()

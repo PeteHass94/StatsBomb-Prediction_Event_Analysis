@@ -2,6 +2,8 @@
 import traceback
 import copy
 
+# Core libraries for data manipulation, UI rendering, and project-specific modules.
+
 import streamlit as st
 import pandas as pd
 import os
@@ -20,8 +22,29 @@ sidebar_container = add_common_page_elements()
 page_container = st.sidebar.container()
 sidebar_container = st.sidebar.container()
 
-st.header("Predicting xG Chance with XGBoost", divider=True)
-st.text("Getting the data")
+st.header("Big Chance Predictor", divider=True)
+st.subheader("Predicting xG Chance with XGBoost")
+st.markdown(
+    """
+Welcome to the **Big Chance Predictor** - an interactive football analytics app powered by **StatsBomb Open Data** and **XGBoost**.
+
+This tool breaks matches into 10-minute segments, recalculating time to run from **0 to 100 minutes** instead of two halves. 
+Each segment is analyzed for attacking momentum using binned and rolling stats like:
+- Expected Goals (xG)
+- Final third passes and carries
+- Box passes and carries
+
+You can:
+- 🧠 Train models to predict big chances *before they happen*
+- ⚽ Explore individual matches through shot maps and carry/passing plots
+- 🔍 Customize thresholds and time intervals for your analysis
+
+Use the sidebar to begin by selecting a competition and team!
+    """
+)
+
+# Loads preprocessed match data from disk for performance. If not found, triggers fetch + save.
+# Useful when changing thresholds or rerunning sessions without re-fetching large JSON files.
 
 
 def get_cached_matches(competition_id, data_dir='data'):
@@ -38,19 +61,34 @@ def get_cached_matches(competition_id, data_dir='data'):
 
 
 def main():
+    
+    # Ensures selected dropdown values persist across Streamlit interactions for UX consistency.
+    
      # Initialize session state variables
     for key in ["selected_competition_name", "selected_team_name", "selected_match_name"]:
         if key not in st.session_state:
             st.session_state[key] = None
     
-    competitions = dataFetcher.get_competition_teams_matches()
-    st.dataframe(competitions[["competition_name", "season_name","competition_id", "season_id", "matches", "teams count", "teams"]])
-    st.text(f"Total Competitions: {len(competitions)}, Total Teams: {competitions['teams count'].sum()}, Total Matches: {competitions['matches'].sum()}")
+    # Overview table showing all competitions, number of matches, and teams. 
+    # Helps the user grasp available data coverage before diving in.
 
+    
+    competitions = dataFetcher.get_competition_teams_matches()
+    competitions_summary = f"Total Competitions: {len(competitions)}, Total Teams: {competitions['teams count'].sum()}, Total Matches: {competitions['matches'].sum()}"
+
+    st.expandable_text = st.expander(f"See selectable competitions and their teams - {competitions_summary}")
+    with st.expandable_text:
+        st.dataframe(competitions[["competition_name", "season_name","competition_id", "season_id", "matches", "teams count", "teams"]])
+        st.markdown("""
+        **Data Sourced:** StatsBomb Open Data for the 2015/16 season of the Big 5 European Leagues (Premier League, La Liga, Serie A, Bundesliga, Ligue 1).
+        [The 2015/16 Big 5 Leagues Free Data](https://statsbomb.com/news/the-2015-16-big-5-leagues-free-data-release-la-liga/).
+        """)
+    
     for competition_id in competitions['competition_id']:
         matches_all = get_cached_matches(competition_id)
         
     
+
     # Step 1: User selects competition
     selected_competition_name = st.sidebar.selectbox("🎯 Select a Competiton for its analysis:", competitions["competition_name"].unique())
     comp = competitions.query('competition_name == @selected_competition_name')
@@ -58,27 +96,45 @@ def main():
     # Step 2: Combine team lists and remove duplicates
     # Flatten the list of lists
     
+    # Flattens and deduplicates teams from selected competition — used for filtering match data later.
+
     
     all_teams = [team for sublist in comp["teams"] for team in sublist]
     # unique_teams = list(all_teams)
       
-    st.subheader(f"Selected Competition: {selected_competition_name}")
-
+    st.subheader(f"Selected Competition: `{selected_competition_name}`")
+    competition_summary = f"Total Matches: {comp['matches'].iloc[0]}, Total Teams: {comp['teams count'].iloc[0]}"
+    st.text(competition_summary)
+    
+    
+    # Allows analysts to adjust what qualifies as a “big chance” (based on xG). 
+    # Influences target labels in model training.
+    st.markdown("""
+    ### Define Big Chance Threshold
+    >Adjust the xG threshold to define what counts as a Big Chance. This will change how matches are labeled and analyzed.
+    
+    >The default is 0.2, but you can set it to any value between 0.1 and 0.99.
+    >Changing this will require re-fetching the data.
+    """)
     
      # 📏 Add threshold slider for big chance definition
     big_chance_threshold = st.slider(
-        "Define what xG value counts as a Big Chance: (Changing from 0.2 will need new data to be fetched)",
+        "Define what xG value counts as a Big Chance:",
         min_value=0.1,
         max_value=0.99,
         value=0.2,
         step=0.01,
         help="Bins with xG above this threshold will be considered a big chance"
     )
-    st.text(f"Big Chance Threshold: {big_chance_threshold}")
+    st.write("Big Chance Threshold:", big_chance_threshold)
     
     # matches = dataFetcher.get_teams_matches(comp.competition_id.iloc[0], selected_team_name)
     # matches = dataFetcher.get_all_teams_matches(comp.competition_id.iloc[0], big_chance_threshold)
 
+    # Applies future label logic: For each bin in a match, does a big chance occur in the next 10 mins?
+    # This helps us turn match time series into predictive supervised learning examples.
+
+    
     comp_id = comp.competition_id.iloc[0]
     matches = get_cached_matches(comp_id)
     matches[['big_chance_for_next_10', 'big_chance_against_next_10']] = matches.apply(
@@ -92,6 +148,7 @@ def main():
         axis=1
     )
 
+    # Filters full competition dataset to only include matches from the selected team.
     
     # Step 3: Team selectbox
     selected_team_name = st.sidebar.selectbox("🎯 Select a team to see their stats:", sorted(all_teams))  # sort for easier UX
@@ -117,7 +174,11 @@ def main():
         ("rolling_box_carries_for", "rolling_box_carries_against")
     ]  
     
-    st.subheader(f"Selected Team: {selected_team_name}")
+    st.subheader(f"Selected Team: `{selected_team_name}`")
+    
+    # Display of relevant match-level stats including binned/rolling features and target variables.
+    # Helps analysts spot trends across matches and bins.
+
     
     team_matches = matches[matches["team"] == selected_team_name]
     # Flatten binned_columns and rolling_columns
@@ -131,22 +192,30 @@ def main():
         "big_chance_for_next_10", "big_chance_against_next_10"
     ] + binned_columns_flat + rolling_columns_flat
 
-    # Display the DataFrame
-    st.dataframe(
-        team_matches[columns_to_display],
-        column_config={
-            "goals_scored": st.column_config.JsonColumn(width="large"),
-            "goals_conceded": st.column_config.JsonColumn(width="large"),
-            "shots_attempted": st.column_config.JsonColumn(width="large"),
-            "shots_conceded": st.column_config.JsonColumn(width="large")
-        },
-        hide_index=True
-    )
+    matches_summary = f"Total Matches: {len(team_matches)}, Total goals scored: {team_matches['team_score'].sum()}, Total Goals Conceded: {team_matches['opponent_score'].sum()}, Minutes Played: {team_matches['match_time'].sum()}"
+    
+    st.expandable_matches = st.expander(f"See selected team matches - {matches_summary}")
+    with st.expandable_matches:    
+        # Display the DataFrame
+        st.dataframe(
+            team_matches[columns_to_display],
+            column_config={
+                "goals_scored": st.column_config.JsonColumn(width="large"),
+                "goals_conceded": st.column_config.JsonColumn(width="large"),
+                "shots_attempted": st.column_config.JsonColumn(width="large"),
+                "shots_conceded": st.column_config.JsonColumn(width="large")
+            },
+            hide_index=True
+        )
         
-    st.text(f"Total Matches: {len(team_matches)}, Total goals scored: {team_matches['team_score'].sum()}, Total Goals Conceded: {team_matches['opponent_score'].sum()}, Minutes Played: {matches['match_time'].sum()}")
+    
+    # For each pair of features (e.g., xG for/against), plots histograms and rolling trends.
+    # These are essential for understanding feature distributions used by the model.
 
     st.subheader("Match Events Graphs")
     selected_match_name = st.selectbox("🎯 Select a match to see their events:", team_matches['match_summary'])
+    st.write("Selected Match:", f"`{selected_team_name} {selected_match_name}`")
+    
     # Get the corresponding row from matches
     selected_match = matches.query('match_summary == @selected_match_name')
     selected_match = matches[matches['match_summary'] == selected_match_name].iloc[0]
@@ -186,6 +255,9 @@ def main():
                 against_name=a_col
             )
     
+    # For each pair of features (e.g., xG for/against), plots histograms and rolling trends.
+    # These are essential for understanding feature distributions used by the model.
+    
     st.subheader("Match Events Visualizations")
     
     # Load and process events
@@ -200,6 +272,8 @@ def main():
         lambda x: f"{int(x // 10 * 10)}-{int((x // 10 + 1) * 10)}" if pd.notna(x) else None
     )
 
+    # Lets users drill into a single match and filter events by 10-min intervals — crucial for in-depth scouting.
+    
     # UI: Let user select time bins
     selected_bins = st.multiselect(
         "Filter by 10-minute time intervals:",
@@ -217,6 +291,9 @@ def main():
     
     team_name = selected_match['team']
 
+    # Uses StatsBomb events (passes, shots, carries) to generate pitch maps, split by type and zone.
+    # Good for storytelling around tactical phases and player involvement.
+    
     with event_tabs[0]:
         st.subheader("Shot Map")
         visuals.plot_shot_map(shots_df, team_name=team_name)
@@ -237,9 +314,25 @@ def main():
         st.subheader("Carries into the Box (Completed Carries)")
         visuals.plot_carry_map(carries_df, team_name=team_name, carry_type="Box")     
             
-    
-            
+    # Triggers pipeline that explodes match data into bin-level rows, trains classifiers, and visualizes results.
+                
     st.subheader("📊 Big Chance Model Evaluation")
+    st.markdown(
+    """
+    This section uses the match data you've explored to **train an XGBoost classifier** that predicts whether a team will **produce or concede a big chance** in the **next 10 minutes** of play.
+
+    ### How it works:
+    - **Match Binning**: Each match is split into 10-minute segments, and stats are aggregated per bin.
+    - **Feature Engineering**: We use historical context — cumulative xG, passes, and carries — up to that bin.
+    - **Target Labels**: The label is whether a big chance occurs in the **next** time bin.
+    - **Train/Test Split**: Matches are split 80/20 **by match ID** to prevent data leakage.
+    - **Model Level**: Training is done **per-bin**, but results are summarized **per match** to keep them interpretable.
+
+    Use the results to identify patterns in team momentum, early signs of defensive vulnerability, or consistent attacking intent across matches.
+
+    """
+    )
+    
     # model_for, model_against = ml.train_big_chance_prediction_models(matches)
     ml.train_big_chance_prediction_models(matches[matches['team'] == selected_team_name])
     
