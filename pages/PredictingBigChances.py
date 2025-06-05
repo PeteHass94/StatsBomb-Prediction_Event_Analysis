@@ -38,7 +38,8 @@ Each segment is analyzed for attacking momentum using binned and rolling stats l
 You can:
 - 🧠 Train models to predict big chances *before they happen*
 - ⚽ Explore individual matches through shot maps and carry/passing plots
-- 🔍 Customize thresholds and time intervals for your analysis
+- 🔍 Customize thresholds for your analysis
+- 🛠️ Things to add: xT, time variables, and more!
 
 Use the sidebar to begin by selecting a competition and team!
     """
